@@ -209,7 +209,7 @@ export class Player extends Actor {
 
     // --- state machine
     const slowMult = this.speedMult * (this.whirl ? 0.65 : 1);
-    const speed = BASE_SPEED * (1 + st.moveSpeed) * slowMult;
+    const speed = BASE_SPEED * (1 + st.moveSpeed) * slowMult * (game.cheat('swift') ? 2 : 1);
     let wantVX = 0;
     let wantVY = 0;
 
@@ -491,19 +491,20 @@ export class Player extends Actor {
       return;
     }
     const st = world.game.stats();
-    const cost = Math.round(def.mp * (1 - Math.min(0.5, st.passives.mpCost)));
+    const free = world.game.cheat('freeSkills');
+    const cost = free ? 0 : Math.round(def.mp * (1 - Math.min(0.5, st.passives.mpCost)));
     if (this.mp < cost) {
       audio.playSfx('no_mana');
       world.popText(this.x, this.y - 22, 'Not enough MP', '#0099db', { small: true });
       return;
     }
-    if (def.hpCost && this.hp <= this.maxHp * def.hpCost + 1) {
+    if (def.hpCost && !free && this.hp <= this.maxHp * def.hpCost + 1) {
       audio.playSfx('ui_error', { volume: 0.5 });
       world.popText(this.x, this.y - 22, 'Not enough HP', '#e43b44', { small: true });
       return;
     }
     this.mp -= cost;
-    this.cooldowns[id] = this.skillCooldownFor(id, world);
+    this.cooldowns[id] = free ? 0 : this.skillCooldownFor(id, world);
     this.swing = null;
     this.state = 'cast';
     this.stateT = 0;

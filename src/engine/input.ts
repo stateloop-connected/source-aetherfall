@@ -434,6 +434,11 @@ export class Input {
     return this.repeated.has(a);
   }
 
+  /** Was this raw key code (e.g. 'Backquote') pressed this frame? */
+  keyPressed(code: string): boolean {
+    return this.justDown.has(code);
+  }
+
   /** Was any key/button/touch pressed this frame? */
   anyPressed(): boolean {
     return this.anyPressedFlag || [...this.padDown].some((b) => !this.padPrev.has(b));

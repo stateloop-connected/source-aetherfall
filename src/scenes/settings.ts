@@ -1,9 +1,14 @@
-/** Settings: audio, gameplay, accessibility, display and key rebinding. */
+/**
+ * Settings: audio, gameplay, accessibility, display and key rebinding. Pressing confirm
+ * on the version line DEV_UNLOCK_PRESSES times reveals the Developer section.
+ */
+import { version } from '../../package.json';
 import { audio } from '../audio';
 import type { Scene } from '../engine/app';
 import { drawText } from '../engine/font';
 import { ACTION_LABELS, DEFAULT_KEYS, keyLabel, REBINDABLE, type Action } from '../engine/input';
 import { DIFFICULTY, MAX_TORMENT } from '../game/balance';
+import { DEV_UNLOCK_PRESSES } from '../game/dev';
 import { hasFlag } from '../game/state';
 import type { Game } from '../game/game';
 import type { Settings, TextSpeed } from '../game/settings';
@@ -24,12 +29,14 @@ type Row =
         | 'autoLoot'
         | 'showFps'
         | 'reduceFlashing'
-        | 'aimAssist';
+        | 'aimAssist'
+        | 'devMode';
       help: string;
     }
   | { kind: 'choice'; label: string; get: () => string; cycle: (dir: number) => void; help: string }
   | { kind: 'action'; label: string; run: () => void; help: string }
-  | { kind: 'bind'; action: Action };
+  | { kind: 'bind'; action: Action }
+  | { kind: 'version' };
 
 const SPEEDS: TextSpeed[] = ['slow', 'normal', 'fast', 'instant'];
 const DIFFS: Difficulty[] = ['story', 'normal', 'hard', 'nightmare'];
@@ -38,8 +45,16 @@ export class SettingsScene implements Scene {
   readonly opaque = false;
   private list: ListView<Row>;
   private capturing: Action | null = null;
+  /** Confirm presses on the version line so far. */
+  private versionPresses = 0;
 
   constructor(private game: Game) {
+    this.list = new ListView(this.rows(), 12, 16, false);
+    this.list.index = 1;
+  }
+
+  private rows(): Row[] {
+    const game = this.game;
     const s = (): Settings => game.settings;
     const rows: Row[] = [
       { kind: 'header', label: 'Audio' },
@@ -157,9 +172,52 @@ export class SettingsScene implements Scene {
         },
         help: 'Restore the default key bindings.',
       },
+      { kind: 'version' },
     ];
-    this.list = new ListView(rows, 12, 16, false);
-    this.list.index = 1;
+    if (s().devUnlocked)
+      rows.push(
+        { kind: 'header', label: 'Developer' },
+        {
+          kind: 'toggle',
+          label: 'Developer Mode',
+          key: 'devMode',
+          help: 'Adds a Dev tab to the pause menu (or press `) with cheats, teleports and shortcuts for testing.',
+        },
+        {
+          kind: 'action',
+          label: 'Hide Developer Options',
+          run: () => {
+            s().devUnlocked = false;
+            s().devMode = false;
+            this.versionPresses = 0;
+            this.save();
+            this.list.setItems(this.rows());
+          },
+          help: 'Turns developer mode off and hides this section again.',
+        },
+      );
+    return rows;
+  }
+
+  /** Another press on the version line: reveal the Developer section after enough of them. */
+  private pressVersion(): void {
+    const s = this.game.settings;
+    if (s.devUnlocked) return;
+    this.versionPresses++;
+    if (this.versionPresses < DEV_UNLOCK_PRESSES) {
+      audio.playSfx('ui_move');
+      return;
+    }
+    s.devUnlocked = true;
+    this.save();
+    audio.playSfx('stinger_discovery');
+    this.list.setItems(this.rows());
+  }
+
+  private versionNote(): string {
+    if (this.game.settings.devUnlocked) return '{green}Developer options shown{/}';
+    const left = DEV_UNLOCK_PRESSES - this.versionPresses;
+    return this.versionPresses >= 3 ? `{gold}${left} more…{/}` : '';
   }
 
   private save(): void {
@@ -209,6 +267,9 @@ export class SettingsScene implements Scene {
         break;
       case 'action':
         if (r === 'confirm') row.run();
+        break;
+      case 'version':
+        if (r === 'confirm') this.pressVersion();
         break;
       case 'bind':
         if (r === 'confirm') {
@@ -275,6 +336,10 @@ export class SettingsScene implements Scene {
           break;
         case 'action':
           drawText(ctx, row.label, rx, ry, { color: sel ? UI.accent : '#c0cbdc' });
+          break;
+        case 'version':
+          drawText(ctx, `Aetherfall v${version}`, rx, ry, { color: sel ? UI.accent : UI.dim });
+          drawText(ctx, this.versionNote(), vx, ry, { align: 'right' });
           break;
         case 'bind': {
           drawText(ctx, ACTION_LABELS[row.action], rx, ry, { color: sel ? UI.accent : '#ffffff' });

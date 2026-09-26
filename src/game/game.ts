@@ -13,6 +13,7 @@ import { categoryForLevel, paragonXpToNext } from './paragon';
 import { PARAGON_CATEGORY_INFO } from '../data/paragon';
 import { displayName, generateItem, itemIcon, type GenerateOptions } from './items';
 import { Achievements } from './achievements';
+import type { Cheat } from './dev';
 import { QuestSystem } from './quests';
 import { SaveStore } from './saves';
 import { loadSettings, saveSettings, type Settings } from './settings';
@@ -53,6 +54,8 @@ export class Game {
   private _save: SaveData | null = null;
   private statsCache: HeroStats | null = null;
   buffs: Buffs = { ...NO_BUFFS };
+  /** Developer cheats switched on in the Dev tab (only active while developer mode is on). */
+  readonly cheats = new Set<Cheat>();
   private challengeT = 0;
   toasts: Toast[] = [];
   /** Recent dialogue for the backlog viewer. */
@@ -125,6 +128,11 @@ export class Game {
     if (this._save) this.events.emit('statsChanged', undefined);
   }
 
+  /** Is a developer cheat active? */
+  cheat(c: Cheat): boolean {
+    return this.settings.devMode && this.cheats.has(c);
+  }
+
   // -------------------------------------------------------------- saving ----
   saveNow(): boolean {
     if (!this._save) return false;
@@ -134,9 +142,10 @@ export class Game {
   }
 
   // ------------------------------------------------------------- rewards ----
-  giveXp(amount: number): void {
+  /** Grant XP (with XP bonuses unless `raw`). */
+  giveXp(amount: number, raw = false): void {
     const s = this.save;
-    const bonus = 1 + this.stats().xpBonus;
+    const bonus = raw ? 1 : (1 + this.stats().xpBonus) * (this.cheat('xp10') ? 10 : 1);
     const res = grantXp(s, amount * bonus);
     if (res.levels > 0) {
       this.invalidateStats();

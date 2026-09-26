@@ -207,9 +207,9 @@ export function castSkill(world: World, p: Player, id: SkillId, rank: number): v
       break;
     }
     case 'bloodrite': {
-      const cost = Math.round(p.maxHp * (def.hpCost ?? 0.15));
+      const cost = world.game.cheat('freeSkills') ? 0 : Math.round(p.maxHp * (def.hpCost ?? 0.15));
       p.hp = Math.max(1, p.hp - cost);
-      world.popText(p.x, p.y - 20, `-${cost}`, '#a22633');
+      if (cost) world.popText(p.x, p.y - 20, `-${cost}`, '#a22633');
       const buffs = world.game.buffs;
       buffs.rite = bloodRiteDuration(rank);
       buffs.riteBonus = bloodRiteBonus(rank);
