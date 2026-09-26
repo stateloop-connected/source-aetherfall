@@ -1148,6 +1148,7 @@ export class World {
     knock: number,
     heavy?: boolean,
   ): void {
+    if (this.game.cheat('oneHit')) dmg = Math.max(dmg, Math.ceil(e.hp));
     e.hp -= dmg;
     this.game.save.stats.damageDealt += dmg;
     e.onHurt(dir, knock * (heavy ? 1.4 : 1));
@@ -1731,7 +1732,7 @@ export class World {
   /** Enemy hits the player (melee, contact, nova...). */
   hitPlayerFrom(e: Enemy, mult: number, dir: number, knock: number, status?: StatusSpec): void {
     const p = this.player;
-    if (p.state === 'dead') return;
+    if (p.state === 'dead' || this.game.cheat('god')) return;
     if (p.invulnerable) {
       if (p.inPerfectWindow) this.perfectDodge();
       return;
@@ -1825,7 +1826,7 @@ export class World {
   /** Damage without source (DoTs, environmental). */
   hurtPlayerRaw(dmg: number, dot: boolean): void {
     const p = this.player;
-    if (p.state === 'dead' || (p.invulnerable && !dot)) return;
+    if (p.state === 'dead' || (p.invulnerable && !dot) || this.game.cheat('god')) return;
     p.hp -= dmg;
     if (dot)
       this.popText(p.x + rng.range(-4, 4), p.y - 20, `${dmg}`, p.statuses.poison ? '#63c74d' : '#f77622', {
@@ -1922,7 +1923,7 @@ export class World {
 
   projectileHitsPlayer(pr: Projectile): void {
     const p = this.player;
-    if (p.state === 'dead') return;
+    if (p.state === 'dead' || this.game.cheat('god')) return;
     if (p.invulnerable) {
       if (p.inPerfectWindow) this.perfectDodge();
       return;
@@ -2035,6 +2036,7 @@ export class World {
 
   hazardHitsPlayer(h: Hazard): void {
     const p = this.player;
+    if (this.game.cheat('god')) return;
     if (p.invulnerable) {
       if (p.inPerfectWindow) this.perfectDodge();
       return;

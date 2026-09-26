@@ -48,8 +48,13 @@ export class WorldScene implements Scene, WorldHooks {
   }
 
   enter(): void {
-    // level-up flourish on the hero
-    this.unsubs.push(this.game.events.on('levelUp', () => this.world.levelUpBurst()));
+    // level up: the hero is healed to full (the save already is) and gets a flourish
+    this.unsubs.push(
+      this.game.events.on('levelUp', () => {
+        this.world.player.syncFromSave(this.world);
+        this.world.levelUpBurst();
+      }),
+    );
     window.addEventListener('blur', this.onBlur);
   }
 
@@ -117,6 +122,7 @@ export class WorldScene implements Scene, WorldHooks {
       if (input.pressed('pause')) this.openMenu('system');
       else if (input.pressed('menu')) this.openMenu('hero');
       else if (input.pressed('map')) this.openMenu('map');
+      else if (this.game.settings.devMode && input.keyPressed('Backquote')) this.openMenu('dev');
     }
     this.world.inputBlocked = this.busy || this.game.app.fading;
     this.world.update(dt);

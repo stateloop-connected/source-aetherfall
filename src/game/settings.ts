@@ -22,6 +22,10 @@ export interface Settings {
   keys: Partial<KeyBindings>;
   /** Default difficulty for new games. */
   difficulty: Difficulty;
+  /** The Developer section of Settings has been revealed (press confirm on the version line 7 times). */
+  devUnlocked: boolean;
+  /** Developer mode: adds the Dev tab (testing tools) to the pause menu. */
+  devMode: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -41,6 +45,8 @@ export const DEFAULT_SETTINGS: Settings = {
   aimAssist: true,
   keys: {},
   difficulty: 'normal',
+  devUnlocked: false,
+  devMode: false,
 };
 
 export const TEXT_SPEED_CPS: Record<TextSpeed, number> = {

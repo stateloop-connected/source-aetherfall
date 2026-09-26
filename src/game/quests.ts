@@ -113,6 +113,17 @@ export class QuestSystem {
     this.game.events.emit('questChanged', { id: q.id });
   }
 
+  /** Developer mode: finish a quest's current objective as if it were done. */
+  skipObjective(id: string): boolean {
+    const q = this.state(id);
+    if (!q || q.done) return false;
+    const o = this.objective(q);
+    if (o?.type === 'boss') setFlag(this.save, `boss_${o.boss}`);
+    if (o?.type === 'flag') setFlag(this.save, o.flag);
+    this.advance(q);
+    return true;
+  }
+
   /** Objectives completed before the quest reached them (e.g. a boss killed early). */
   private alreadySatisfied(o: Objective): boolean {
     if (o.type === 'boss') return hasFlag(this.save, `boss_${o.boss}`);

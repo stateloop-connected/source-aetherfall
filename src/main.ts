@@ -3,6 +3,7 @@ import './style.css';
 import { audio } from './audio';
 import { App } from './engine/app';
 import { drawText } from './engine/font';
+import { CHEAT_IDS, CHEATS } from './game/dev';
 import { Game } from './game/game';
 import { TitleScene } from './scenes/title';
 import { TouchControls } from './ui/touch';
@@ -33,6 +34,15 @@ app.postRender = (ctx) => {
       color: '#63c74d',
       outline: '#181425',
     });
+  // developer mode reminder, with the cheats that are on
+  if (game.settings.devMode && game.hasSave) {
+    const on = CHEAT_IDS.filter((c) => game.cheats.has(c)).map((c) => CHEATS[c].short);
+    drawText(ctx, ['DEV', ...on].join(' '), app.width - 4, app.height - (game.settings.showFps ? 22 : 12), {
+      align: 'right',
+      color: '#feae34',
+      outline: '#181425',
+    });
+  }
 };
 
 document.addEventListener('visibilitychange', () => {

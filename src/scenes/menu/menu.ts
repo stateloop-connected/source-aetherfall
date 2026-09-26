@@ -1,4 +1,4 @@
-/** Tabbed pause/game menu (Hero, Stats, Items, Gems, Skills, Talents, Quests, Map, Bestiary, Records, System). */
+/** Tabbed pause/game menu (Hero, Stats, Items, Gems, Skills, Talents, Quests, Map, Bestiary, Records, System, Dev). */
 import { audio } from '../../audio';
 import type { Scene } from '../../engine/app';
 import { drawText, measureText } from '../../engine/font';
@@ -8,6 +8,7 @@ import { drawHints, drawPanel, UI } from '../../ui/widgets';
 import type { WorldScene } from '../world-scene';
 import { AscendTab } from './ascend';
 import { BestiaryTab } from './bestiary';
+import { DevTab } from './dev';
 import { GemsTab } from './gems';
 import { HeroTab } from './hero';
 import { ItemsTab } from './items';
@@ -33,7 +34,8 @@ export type MenuTab =
   | 'map'
   | 'bestiary'
   | 'records'
-  | 'system';
+  | 'system'
+  | 'dev';
 
 export interface TabView {
   readonly label: string;
@@ -63,6 +65,7 @@ const ORDER: MenuTab[] = [
   'bestiary',
   'records',
   'system',
+  'dev',
 ];
 
 export class MenuScene implements Scene {
@@ -91,6 +94,7 @@ export class MenuScene implements Scene {
       bestiary: new BestiaryTab(this),
       records: new RecordsTab(this),
       system: new SystemTab(this),
+      dev: new DevTab(this),
     };
     this.curId = this.order().includes(tab) ? tab : 'hero';
   }
@@ -144,7 +148,10 @@ export class MenuScene implements Scene {
     // quick-close with the key that opened menus
     if (
       this.t > 0.1 &&
-      (input.pressed('menu') || input.pressed('pause') || (input.pressed('map') && this.curId === 'map'))
+      (input.pressed('menu') ||
+        input.pressed('pause') ||
+        (input.pressed('map') && this.curId === 'map') ||
+        (input.keyPressed('Backquote') && this.curId === 'dev'))
     ) {
       this.close();
       return;
