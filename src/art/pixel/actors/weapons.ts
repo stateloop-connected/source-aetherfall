@@ -79,6 +79,9 @@ const INFO: Record<WeaponKind, WeaponInfo> = {
   greatsword: { w: 24, h: 9, gripX: 3, gripY: 4 },
   dagger: { w: 10, h: 5, gripX: 1, gripY: 2 },
   staff: { w: 20, h: 8, gripX: 5, gripY: 4 },
+  // placeholders until the bow and crossbow art is drawn
+  bow: { w: 16, h: 7, gripX: 3, gripY: 3 },
+  crossbow: { w: 16, h: 7, gripX: 3, gripY: 3 },
 };
 
 export function weaponSize(kind: WeaponKind): WeaponInfo {

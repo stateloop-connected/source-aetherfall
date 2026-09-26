@@ -24,6 +24,15 @@ export const TIER_NAMES: Record<Slot | WeaponKind, readonly string[]> = {
   ],
   dagger: ['Chipped Knife', 'Iron Dagger', 'Steel Stiletto', 'Crystal Fang', 'Ember Kris', 'Aether Needle'],
   staff: ['Oak Staff', 'Iron Rod', 'Mage Staff', 'Crystal Scepter', 'Ember Staff', 'Aether Stave'],
+  bow: ['Hunting Bow', 'Ash Longbow', 'Steel Recurve', 'Crystal Warbow', 'Ember Longbow', 'Aether Bow'],
+  crossbow: [
+    'Rusty Crossbow',
+    'Iron Crossbow',
+    'Steel Arbalest',
+    'Crystal Repeater',
+    'Ember Arbalest',
+    'Aether Ballista',
+  ],
   helm: ['Leather Cap', 'Iron Helm', 'Steel Visor', 'Crystal Circlet', 'Ember Crown', 'Aether Diadem'],
   armor: ['Padded Vest', 'Chainmail', 'Steel Plate', 'Crystal Mail', 'Ember Plate', 'Aether Raiment'],
   boots: ['Sandals', 'Iron Boots', 'Steel Greaves', 'Crystal Treads', 'Ember Striders', 'Aether Walkers'],
@@ -54,6 +63,8 @@ export const SLOT_ICON: Record<Slot | WeaponKind, IconId> = {
   greatsword: 'icon_greatsword',
   dagger: 'icon_dagger',
   staff: 'icon_staff',
+  bow: 'icon_bow',
+  crossbow: 'icon_crossbow',
   helm: 'icon_helm',
   armor: 'icon_armor',
   boots: 'icon_boots',
@@ -81,6 +92,8 @@ export const WEAPON_LABEL: Record<WeaponKind, string> = {
   greatsword: 'Greatsword',
   dagger: 'Dagger',
   staff: 'Staff',
+  bow: 'Bow',
+  crossbow: 'Crossbow',
 };
 
 export const WEAPON_KINDS: readonly WeaponKind[] = ['sword', 'greatsword', 'dagger', 'staff'];
@@ -148,6 +161,30 @@ export const WEAPON_FEEL: Record<WeaponKind, WeaponFeel> = {
     ranged: true,
     desc: 'Fires magic bolts scaling with Magic.',
   },
+  bow: {
+    range: 160,
+    arc: 0,
+    windup: 0.06,
+    active: 0.04,
+    recover: 0.2,
+    dmg: 0.75,
+    knockback: 40,
+    lunge: 0,
+    ranged: true,
+    desc: 'Quick arrows scaling with Attack. The finisher looses a volley.',
+  },
+  crossbow: {
+    range: 170,
+    arc: 0,
+    windup: 0.15,
+    active: 0.05,
+    recover: 0.35,
+    dmg: 1.35,
+    knockback: 90,
+    lunge: 0,
+    ranged: true,
+    desc: 'Slow, heavy bolts that pierce, scaling with Attack.',
+  },
 };
 
 /** Implicit base stats for a slot at an item level (before rarity/upgrade multipliers). */
@@ -164,6 +201,10 @@ export function slotBaseStats(slot: Slot, kind: WeaponKind | undefined, ilvl: nu
           return { atk: w * 0.75, crit: 0.06 };
         case 'staff':
           return { atk: w * 0.45, mag: w * 1.35 };
+        case 'bow':
+          return { atk: w };
+        case 'crossbow':
+          return { atk: w * 1.1 };
       }
       break;
     case 'helm':
