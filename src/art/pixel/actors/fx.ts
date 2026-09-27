@@ -33,6 +33,34 @@ function arrow(): Buf {
   return b.outline(INK);
 }
 
+/** The hero's arrow: slim, pale shaft, steel head and white fletching. */
+function heroArrow(): Buf {
+  const b = new Buf(12, 5);
+  b.hline(3, 8, 2, PAL.tan).set(3, 2, PAL.brown);
+  // nock and fletching
+  b.set(0, 2, PAL.brown).set(1, 2, PAL.sand).set(2, 2, PAL.lightGray);
+  b.set(1, 1, '#ffffff').set(2, 1, PAL.lightGray).set(3, 1, PAL.lightGray);
+  b.set(1, 3, PAL.gray).set(2, 3, PAL.gray).set(3, 3, PAL.slate);
+  // leaf-shaped steel head
+  b.set(9, 1, PAL.gray).set(9, 2, PAL.lightGray).set(9, 3, PAL.slate);
+  b.set(10, 2, '#ffffff');
+  return b.outline(INK);
+}
+
+/** A crossbow quarrel: short and stout, square-headed iron tip, stiff vanes. */
+function quarrel(): Buf {
+  const b = new Buf(11, 5);
+  b.hline(3, 6, 2, PAL.brown).set(4, 2, PAL.tan);
+  // stiff leather vanes
+  b.rect(1, 1, 2, 3, PAL.tan).set(1, 1, PAL.sand).set(1, 3, PAL.brown).set(2, 3, PAL.darkBrown);
+  b.set(2, 2, PAL.darkBrown);
+  // heavy iron head
+  b.set(7, 1, PAL.gray).set(7, 2, PAL.lightGray).set(7, 3, PAL.slate);
+  b.set(8, 1, PAL.lightGray).set(8, 2, '#ffffff').set(8, 3, PAL.gray);
+  b.set(9, 2, PAL.lightGray);
+  return b.outline(INK);
+}
+
 function fireball(f: number): Buf {
   const b = new Buf(12, 9);
   const r = rng(f + 1);
@@ -553,6 +581,8 @@ export const PROJECTILE_DEFS: Record<ProjectileId, SpriteDef> = {
   proj_bubble: one(10, 10, 4, 8, bubble),
   proj_lightning: one(12, 12, 4, 15, lightningBall),
   proj_sunbolt: one(14, 10, 4, 12, sunbolt),
+  proj_hero_arrow: one(12, 5, 1, 1, () => heroArrow()),
+  proj_quarrel: one(11, 5, 1, 1, () => quarrel()),
 };
 
 export const FX_DEFS: Record<FxId, SpriteDef> = {
