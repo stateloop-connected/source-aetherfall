@@ -7,6 +7,8 @@ import { audio } from '../audio';
 import { SKILLS, type SkillId } from '../data/skills';
 import type { App } from '../engine/app';
 import { Emitter } from '../engine/events';
+import { needsFullResolution, setTextStyle } from '../engine/font';
+import { setUiContrast } from '../ui/widgets';
 import { rng } from '../engine/rng';
 import { effectiveDifficulty, MAX_LEVEL, type DifficultyMods, xpToNext } from './balance';
 import { categoryForLevel, paragonXpToNext } from './paragon';
@@ -67,6 +69,7 @@ export class Game {
     this.quests = new QuestSystem(this);
     this.achievements = new Achievements(this);
     this.applySettings();
+    app.screen.onResize(() => setTextStyle(this.settings.textStyle, app.screen.res));
   }
 
   get save(): SaveData {
@@ -110,6 +113,15 @@ export class Game {
     const s = this.settings;
     audio.setVolumes({ master: s.master, music: s.music, sfx: s.sfx });
     this.app.input.setBindings(s.keys);
+    this.applyTextStyle();
+  }
+
+  /** Text style: finer styles need the canvas at full resolution. */
+  private applyTextStyle(): void {
+    const screen = this.app.screen;
+    screen.setFullResolution(needsFullResolution(this.settings.textStyle));
+    setTextStyle(this.settings.textStyle, screen.res);
+    setUiContrast(this.settings.textStyle === 'contrast');
   }
 
   persistSettings(): void {

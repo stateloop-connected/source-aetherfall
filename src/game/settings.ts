@@ -1,5 +1,6 @@
 /** Player preferences persisted separately from save slots. */
 import type { KeyBindings } from '../engine/input';
+import type { TextStyle } from '../engine/font';
 import type { Difficulty } from './types';
 
 export type TextSpeed = 'slow' | 'normal' | 'fast' | 'instant';
@@ -26,6 +27,8 @@ export interface Settings {
   devUnlocked: boolean;
   /** Developer mode: adds the Dev tab (testing tools) to the pause menu. */
   devMode: boolean;
+  /** How on-screen text is drawn (see engine/font TEXT_STYLES). */
+  textStyle: TextStyle;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -47,6 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   difficulty: 'normal',
   devUnlocked: false,
   devMode: false,
+  textStyle: 'crisp',
 };
 
 export const TEXT_SPEED_CPS: Record<TextSpeed, number> = {

@@ -1,6 +1,6 @@
 /** Generic yes/no modal. */
 import type { Scene } from '../engine/app';
-import { drawText, LINE_HEIGHT, wrapText } from '../engine/font';
+import { drawText, lineHeight, wrapText } from '../engine/font';
 import type { Game } from '../game/game';
 import { drawPanel, ListView, UI } from '../ui/widgets';
 
@@ -38,11 +38,11 @@ export class ConfirmScene implements Scene {
     ctx.fillStyle = 'rgba(11,10,18,0.5)';
     ctx.fillRect(0, 0, W, H);
     const w = 240;
-    const h = this.lines.length * LINE_HEIGHT + 44;
+    const h = this.lines.length * lineHeight() + 44;
     const x = Math.round((W - w) / 2);
     const y = Math.round((H - h) / 2);
     drawPanel(ctx, x, y, w, h);
-    this.lines.forEach((l, i) => drawText(ctx, l, x + 10, y + 8 + i * LINE_HEIGHT));
+    this.lines.forEach((l, i) => drawText(ctx, l, x + 10, y + 8 + i * lineHeight()));
     this.list.draw(ctx, x + 8, y + h - 30, w - 16, (label, cx, cy, sel) => {
       drawText(ctx, label, cx + 4, cy, { color: sel ? UI.accent : '#ffffff' });
     });

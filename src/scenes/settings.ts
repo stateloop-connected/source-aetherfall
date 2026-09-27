@@ -5,7 +5,7 @@
 import { version } from '../../package.json';
 import { audio } from '../audio';
 import type { Scene } from '../engine/app';
-import { drawText } from '../engine/font';
+import { drawText, TEXT_STYLE_INFO, TEXT_STYLES } from '../engine/font';
 import { ACTION_LABELS, DEFAULT_KEYS, keyLabel, REBINDABLE, type Action } from '../engine/input';
 import { DIFFICULTY, MAX_TORMENT } from '../game/balance';
 import { DEV_UNLOCK_PRESSES } from '../game/dev';
@@ -128,6 +128,18 @@ export class SettingsScene implements Scene {
         help: 'Show health bars above damaged enemies.',
       },
       { kind: 'header', label: 'Accessibility & Display' },
+      {
+        kind: 'choice',
+        label: 'Text Style',
+        get: () => TEXT_STYLE_INFO[s().textStyle].label,
+        cycle: (d) => {
+          const i = TEXT_STYLES.indexOf(s().textStyle);
+          s().textStyle = TEXT_STYLES[(i + d + TEXT_STYLES.length) % TEXT_STYLES.length];
+        },
+        help: TEXT_STYLES.map((t) => `{gold}${TEXT_STYLE_INFO[t].label}:{/} ${TEXT_STYLE_INFO[t].desc}`).join(
+          '\n',
+        ),
+      },
       {
         kind: 'slider',
         label: 'Screen Shake',
@@ -320,7 +332,7 @@ export class SettingsScene implements Scene {
           break;
         case 'slider':
           drawText(ctx, row.label, rx, ry, { color: sel ? UI.accent : '#ffffff' });
-          drawBar(ctx, vx - 70, ry + 2, 50, 4, s[row.key], UI.accent);
+          drawBar(ctx, vx - 76, ry + 2, 50, 4, s[row.key], UI.accent);
           drawText(ctx, `${Math.round(s[row.key] * 100)}%`, vx, ry, { align: 'right' });
           break;
         case 'toggle':

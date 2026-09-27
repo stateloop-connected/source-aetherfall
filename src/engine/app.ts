@@ -182,7 +182,8 @@ export class App {
 
   private render(): void {
     const ctx = this.screen.ctx;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const r = this.screen.res;
+    ctx.setTransform(r, 0, 0, r, 0, 0);
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
     let start = 0;

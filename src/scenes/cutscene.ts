@@ -14,7 +14,7 @@ import {
 import { audio } from '../audio';
 import { CUTSCENES, type CutStep } from '../data/cutscenes';
 import type { Scene } from '../engine/app';
-import { drawLines, drawText, visibleLength, wrapText } from '../engine/font';
+import { drawLines, drawText, lineHeight, visibleLength, wrapText } from '../engine/font';
 import { parseLine, type Line } from '../game/dialogue';
 import type { Game } from '../game/game';
 import { TEXT_SPEED_CPS } from '../game/settings';
@@ -360,7 +360,10 @@ export class CutsceneScene implements Scene {
       });
       drawText(ctx, line.who, x + off + 12, y - 9, { color: UI.accent });
     }
-    drawLines(ctx, this.wrapped, x + off + 10, y + 8, { maxChars: Math.floor(this.shown), lineHeight: 11 });
+    drawLines(ctx, this.wrapped, x + off + 10, y + 8, {
+      maxChars: Math.floor(this.shown),
+      lineHeight: lineHeight() + 1,
+    });
     if (this.shown >= this.total && Math.floor(this.t * 3) % 2 === 0)
       drawText(ctx, '▼', x + w - 10, y + h - 11, { color: UI.accent });
   }
