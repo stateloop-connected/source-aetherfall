@@ -93,7 +93,10 @@ export type ProjectileId =
   | 'proj_sand'
   | 'proj_bubble'
   | 'proj_lightning'
-  | 'proj_sunbolt';
+  | 'proj_sunbolt'
+  // hero ranged weapons (neutral; elemental trails are added in code)
+  | 'proj_hero_arrow'
+  | 'proj_quarrel';
 
 export type FxId = 'fx_hit' | 'fx_explosion' | 'fx_smoke' | 'fx_sparkle' | 'fx_poof';
 

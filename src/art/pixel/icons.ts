@@ -8,6 +8,11 @@ import type { IconId } from './types';
 import { Grid } from './env/raster';
 import { amulet, armor, boots, dagger, greatsword, helm, ring, staff, sword } from './icons/equip';
 import { belt, charm, gloves } from './icons/gear-extra';
+import { bow, crossbow } from './icons/ranged';
+import { hoodCloth, robeCloth, sashCloth, slippersCloth, wrapsCloth } from './icons/armor-cloth';
+import { beltLeather, bootsLeather, capLeather, glovesLeather, jerkinLeather } from './icons/armor-leather';
+import { breastplatePlate, gauntletPlate, girdlePlate, greavesPlate, helmPlate } from './icons/armor-plate';
+import { ELEMENT_ICONS } from './icons/elements';
 import { gem, type GemArtType } from './icons/gems';
 import { material } from './icons/materials';
 import { ITEM_ICONS } from './icons/items';
@@ -30,6 +35,24 @@ const EQUIP: Partial<Record<IconId, (tier: number) => Grid>> = {
   icon_charm_small: (t) => charm(material(t), 'small'),
   icon_charm_large: (t) => charm(material(t), 'large'),
   icon_charm_grand: (t) => charm(material(t), 'grand'),
+  icon_bow: (t) => bow(material(t), t),
+  icon_crossbow: (t) => crossbow(material(t), t),
+  // armor types (the plain helm/armor/gloves/boots/belt above are mail)
+  icon_helm_cloth: (t) => hoodCloth(material(t), t),
+  icon_armor_cloth: (t) => robeCloth(material(t), t),
+  icon_gloves_cloth: (t) => wrapsCloth(material(t), t),
+  icon_boots_cloth: (t) => slippersCloth(material(t), t),
+  icon_belt_cloth: (t) => sashCloth(material(t), t),
+  icon_helm_leather: (t) => capLeather(material(t), t),
+  icon_armor_leather: (t) => jerkinLeather(material(t), t),
+  icon_gloves_leather: (t) => glovesLeather(material(t), t),
+  icon_boots_leather: (t) => bootsLeather(material(t), t),
+  icon_belt_leather: (t) => beltLeather(material(t), t),
+  icon_helm_plate: (t) => helmPlate(material(t)),
+  icon_armor_plate: (t) => breastplatePlate(material(t)),
+  icon_gloves_plate: (t) => gauntletPlate(material(t)),
+  icon_boots_plate: (t) => greavesPlate(material(t)),
+  icon_belt_plate: (t) => girdlePlate(material(t)),
 };
 
 const OTHER: Partial<Record<IconId, () => Grid>> = {
@@ -37,12 +60,14 @@ const OTHER: Partial<Record<IconId, () => Grid>> = {
   ...SKILL_ICONS,
   ...EMBLEM_ICONS,
   ...UI_ICONS,
+  ...ELEMENT_ICONS,
 };
 
 const clampTier = (t: number | undefined) =>
   Math.max(0, Math.min(5, Math.floor(Number.isFinite(t) ? (t as number) : 0)));
 
-function build(id: IconId, tier: number): Grid {
+/** Build an icon's pixel grid (uncached). Exported for tests; use getIcon for drawing. */
+export function buildIcon(id: IconId, tier: number): Grid {
   const eq = EQUIP[id];
   if (eq) return eq(tier);
   const other = OTHER[id];
@@ -57,5 +82,5 @@ function build(id: IconId, tier: number): Grid {
 /** tier (0-5) tints equipment icons by material; ignored for other icons. */
 export const getIcon: (id: IconId, tier?: number) => Canvas = memo(
   (id, tier) => `${id}|${EQUIP[id] ? clampTier(tier) : 0}`,
-  (id, tier) => build(id, EQUIP[id] ? clampTier(tier) : 0).toCanvas(),
+  (id, tier) => buildIcon(id, EQUIP[id] ? clampTier(tier) : 0).toCanvas(),
 );
