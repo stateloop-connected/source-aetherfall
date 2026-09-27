@@ -190,7 +190,10 @@ describe('weapon balance', () => {
   const dps = (kind: 'sword' | 'staff' | 'bow' | 'crossbow' | 'greatsword' | 'dagger'): number => {
     const s = newGame(0, 'Kai', 'normal');
     s.hero.level = 30;
-    s.equipment.weapon = { ...generateItem(new RNG(kind), 30, { slot: 'weapon', kind, rarity: 'rare' }), affixes: [] };
+    s.equipment.weapon = {
+      ...generateItem(new RNG(kind), 30, { slot: 'weapon', kind, rarity: 'rare' }),
+      affixes: [],
+    };
     delete s.equipment.weapon.element;
     return deriveStats(30, computeHeroStats(s), kind).dps;
   };

@@ -2518,8 +2518,8 @@ export class World {
       kind === 'staff'
         ? { sprite: 'proj_bolt', speed: 260, radius: 3, dmg: 0, life: 0.6 }
         : kind === 'crossbow'
-          ? { sprite: 'proj_arrow', speed: 330, radius: 3, dmg: 0, life: 0.56, scale: o.big ? 1.4 : 1 }
-          : { sprite: 'proj_arrow', speed: 300, radius: 3, dmg: 0, life: 0.58, scale: o.big ? 1.3 : 1 };
+          ? { sprite: 'proj_quarrel', speed: 330, radius: 3, dmg: 0, life: 0.56, scale: o.big ? 1.4 : 1 }
+          : { sprite: 'proj_hero_arrow', speed: 300, radius: 3, dmg: 0, life: 0.58, scale: o.big ? 1.3 : 1 };
     const pr = new Projectile(
       x,
       y,

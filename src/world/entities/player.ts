@@ -861,6 +861,8 @@ export class Player extends Actor {
     ctx.save();
     ctx.translate(hx, hy);
     ctx.rotate(angle);
+    // bows and crossbows stay upright when aimed to the left
+    if ((kind === 'bow' || kind === 'crossbow') && Math.cos(angle) < 0) ctx.scale(1, -1);
     ctx.drawImage(img, -wi.gripX, -wi.gripY);
     ctx.restore();
   }

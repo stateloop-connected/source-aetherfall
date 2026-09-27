@@ -10,31 +10,42 @@ import type { EnemyDef } from './enemies';
 export interface ElementInfo {
   label: string;
   icon: IconId;
-  /** What the element does on hit (tooltips). */
+  /** What the element does on hit (character sheet). */
   effect: string;
+  /** The same, in a few words (item tooltips). */
+  brief: string;
 }
 
 export const ELEMENTS: Record<Element, ElementInfo> = {
-  physical: { label: 'Physical', icon: 'icon_elem_physical', effect: 'Reduced by armor.' },
+  physical: {
+    label: 'Physical',
+    icon: 'icon_elem_physical',
+    effect: 'Reduced by armor.',
+    brief: 'armor blocks it',
+  },
   fire: {
     label: 'Fire',
     icon: 'icon_elem_fire',
     effect: '25% chance to burn for 40% of the fire damage per second for 3s.',
+    brief: 'may burn; armor blocks less',
   },
   ice: {
     label: 'Ice',
     icon: 'icon_elem_ice',
     effect: 'Chills (30% slower) for 2s, 10% chance to freeze for 1s.',
+    brief: 'chills, may freeze; armor blocks less',
   },
   lightning: {
     label: 'Lightning',
     icon: 'icon_elem_lightning',
     effect: '20% chance to arc to 2 nearby enemies for half the damage.',
+    brief: 'may arc to 2 more; armor blocks less',
   },
   poison: {
     label: 'Poison',
     icon: 'icon_elem_poison',
     effect: 'Poisons for 60% of the poison damage over 3s. Stacks up to 3 times.',
+    brief: 'stacking poison; armor blocks less',
   },
 };
 

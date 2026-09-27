@@ -98,7 +98,14 @@ export const WEAPON_LABEL: Record<WeaponKind, string> = {
   crossbow: 'Crossbow',
 };
 
-export const WEAPON_KINDS: readonly WeaponKind[] = ['sword', 'greatsword', 'dagger', 'staff'];
+export const WEAPON_KINDS: readonly WeaponKind[] = [
+  'sword',
+  'greatsword',
+  'dagger',
+  'staff',
+  'bow',
+  'crossbow',
+];
 
 /** Per-weapon combat feel. Timings are in seconds (before attack speed). */
 export interface WeaponFeel {

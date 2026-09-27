@@ -11,7 +11,6 @@ import { pointInRect, type Rect } from '../engine/math';
 import { sellPrice } from '../game/balance';
 import { gemEffect, gemName, socketGroup } from '../game/gems';
 import {
-  armorTypeOf,
   displayName,
   formatStat,
   itemIcon,
@@ -22,7 +21,6 @@ import {
   statDiff,
   weaponElement,
 } from '../game/items';
-import { ARMOR } from '../data/armor';
 import { ELEMENTS } from '../data/elements';
 import { SETS, setPieceCounts } from '../data/sets';
 import type { Item, StatKey } from '../game/types';
@@ -236,8 +234,6 @@ export function itemTooltipLines(
   lines.push(`{${item.rarity}}${displayName(item)}{/}`);
   const rarityName = item.rarity === 'set' ? 'Set' : item.rarity[0].toUpperCase() + item.rarity.slice(1);
   lines.push(`{gray}${rarityName} ${itemTypeLabel(item)} • iLvl ${item.ilvl}{/}`);
-  const armor = armorTypeOf(item);
-  if (armor && item.armorType) lines.push(`{gray}${ARMOR[armor].desc}{/}`);
   const power = itemScore(item);
   if (compare && compare !== item) {
     const d = power - itemScore(compare);
@@ -268,9 +264,8 @@ export function itemTooltipLines(
     const info = ELEMENTS[el.element];
     lines.push('');
     lines.push(
-      `{${el.element}}${info.label}: ${Math.round(el.conv * 100)}% of physical damage becomes ${info.label.toLowerCase()}{/}`,
+      `{${el.element}}${Math.round(el.conv * 100)}% ${info.label} damage{/} {gray}(${info.brief}){/}`,
     );
-    lines.push(`{gray}${info.effect} Armor blocks it less.{/}`);
   }
   if (item.sockets?.length) {
     lines.push('');
@@ -291,16 +286,23 @@ export function itemTooltipLines(
   return lines;
 }
 
-/** A set item's set: its pieces (worn ones bright) and bonuses (active ones bright). */
+/** A set item's set: bonuses (active ones bright), then its pieces on one line (worn ones bright). */
 export function setLines(item: Item, worn: readonly (Item | null)[] = []): string[] {
   const set = SETS[item.set!];
   const wornNames = new Set(worn.filter((w) => w?.set === set.id).map((w) => w!.name));
   const n = setPieceCounts(worn).get(set.id) ?? 0;
   const lines = [`{set}${set.name} (${n}/${set.pieces.length}){/}`];
-  for (const p of set.pieces)
-    lines.push(wornNames.has(p.name) ? `{set}  • ${p.name}{/}` : `{gray}  • ${p.name}{/}`);
   for (const b of set.bonuses)
     lines.push(n >= b.pieces ? `{set}(${b.pieces}) ${b.desc}{/}` : `{gray}(${b.pieces}) ${b.desc}{/}`);
+  lines.push(
+    set.pieces
+      .map((p) => {
+        // the set's name is already above: "Archmage's Robe" → "Robe"
+        const short = p.name.split(' ').slice(1).join(' ') || p.name;
+        return wornNames.has(p.name) ? `{set}${short}{/}` : `{gray}${short}{/}`;
+      })
+      .join('{gray}, {/}'),
+  );
   return lines;
 }
 
