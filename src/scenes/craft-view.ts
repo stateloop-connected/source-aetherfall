@@ -7,7 +7,7 @@ import { CONSUMABLES, MATERIALS } from '../data/items';
 import { recipesFor, type Recipe, type Station } from '../data/recipes';
 import { drawText } from '../engine/font';
 import { rng } from '../engine/rng';
-import { CRAFT_ILVL_BONUS, craft, craftBlocker, socketTargets } from '../game/crafting';
+import { CRAFT_ILVL_BONUS, craft, craftBlocker, imbueTargets, socketTargets } from '../game/crafting';
 import type { Game } from '../game/game';
 import { displayName, itemIcon, tierForLevel } from '../game/items';
 import type { Item, MaterialId } from '../game/types';
@@ -54,9 +54,11 @@ export class CraftView {
     const recipe = this.list.selected;
     const why = craftBlocker(this.game.save, recipe);
     if (why) return this.fail(why);
-    if (recipe.result.kind === 'socket') {
+    if (recipe.result.kind === 'socket' || recipe.result.kind === 'imbue') {
       audio.playSfx('ui_select');
-      this.picker = { recipe, list: new ListView(socketTargets(this.game.save), 12, 12, false) };
+      const targets =
+        recipe.result.kind === 'socket' ? socketTargets(this.game.save) : imbueTargets(this.game.save);
+      this.picker = { recipe, list: new ListView(targets, 12, 12, false) };
       return;
     }
     this.make(recipe);
@@ -88,6 +90,13 @@ export class CraftView {
         audio.playSfx('upgrade_success');
         g.toast(`Socket added to {${res.item.rarity}}${displayName(res.item)}{/}`, 'icon_void');
         break;
+      case 'imbue':
+        audio.playSfx('upgrade_success');
+        g.toast(
+          `{${res.item.rarity}}${displayName(res.item)}{/} is now {${res.item.element}}${res.item.element}{/}`,
+          recipe.icon,
+        );
+        break;
     }
   }
 
@@ -99,7 +108,7 @@ export class CraftView {
   hints(): [string, string][] {
     return this.picker
       ? [
-          ['confirm', 'Add socket'],
+          ['confirm', this.picker.recipe.result.kind === 'imbue' ? 'Imbue' : 'Add socket'],
           ['cancel', 'Back'],
         ]
       : [['confirm', 'Craft']];
@@ -113,7 +122,13 @@ export class CraftView {
     if (this.picker) {
       const list = this.picker.list;
       list.visibleRows = Math.floor((f.h - 30) / 12);
-      drawText(ctx, 'Add a socket to which item?', f.x + 8, f.y + 4, { color: UI.dim });
+      drawText(
+        ctx,
+        this.picker.recipe.result.kind === 'imbue' ? 'Imbue which weapon?' : 'Add a socket to which item?',
+        f.x + 8,
+        f.y + 4,
+        { color: UI.dim },
+      );
       list.draw(ctx, f.x + 4, f.y + 16, listW, (it, x, y) => {
         drawIcon(ctx, itemIcon(it), x, y - 4, it.tier);
         drawText(ctx, `{${it.rarity}}${ellipsize(displayName(it), listW - 30)}{/}`, x + 18, y);

@@ -5,7 +5,7 @@
  * Text is rendered from a white glyph atlas that is tinted & cached per color, so
  * it stays perfectly crisp on the low-resolution game canvas.
  */
-import { PAL } from '../art/palette';
+import { ELEMENT_COLORS, PAL, RARITY_COLORS } from '../art/palette';
 
 const GLYPHS: Record<string, string> = {
   A: '.##.|#..#|#..#|####|#..#|#..#|#..#',
@@ -201,7 +201,13 @@ export const TEXT_COLORS: Record<string, string> = {
   rare: PAL.sky,
   epic: PAL.magenta,
   legendary: PAL.orange,
+  set: RARITY_COLORS.set,
   abyssal: PAL.hotPink,
+  physical: ELEMENT_COLORS.physical,
+  fire: ELEMENT_COLORS.fire,
+  ice: ELEMENT_COLORS.ice,
+  lightning: ELEMENT_COLORS.lightning,
+  poison: ELEMENT_COLORS.poison,
 };
 
 export interface TextRun {

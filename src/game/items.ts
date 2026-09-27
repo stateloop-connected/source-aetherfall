@@ -1,8 +1,11 @@
 /** Pure item logic: generation, stat totals, naming, scoring and descriptions. */
 import type { IconId, WeaponKind } from '../art/pixel/types';
+import { ARMOR, ARMOR_WEIGHTS, armorName } from '../data/armor';
+import { CONVERSION, ELEMENT_CHANCE } from '../data/elements';
 import {
   AFFIXES,
   LEGENDARIES,
+  LEGENDARY_BY_ID,
   SLOT_ICON,
   SLOT_LABEL,
   TIER_NAMES,
@@ -11,21 +14,25 @@ import {
   slotBaseStats,
 } from '../data/items';
 import type { RNG } from '../engine/rng';
+import { SETS, SET_IDS } from '../data/sets';
 import { charmLimitFor, upgradeMult } from './balance';
 import { gemEffect, socketGroup } from './gems';
 import type {
   Affix,
+  ArmorType,
   CharmSize,
+  DamageElement,
   EquipSlot,
   GearSlot,
   Item,
   LegendaryId,
   Rarity,
+  SetId,
   Slot,
   StatKey,
   Stats,
 } from './types';
-import { GEAR_SLOTS, RARITIES, STAT_INFO, equipSlotsFor } from './types';
+import { DAMAGE_ELEMENTS, GEAR_SLOTS, RARITIES, STAT_INFO, equipSlotsFor, isArmorSlot } from './types';
 
 export const RARITY_INDEX: Record<Rarity, number> = {
   common: 0,
@@ -33,12 +40,13 @@ export const RARITY_INDEX: Record<Rarity, number> = {
   rare: 2,
   epic: 3,
   legendary: 4,
-  abyssal: 5,
+  set: 5,
+  abyssal: 6,
 };
-const RARITY_MULT = [1, 1.1, 1.22, 1.38, 1.55, 1.9];
-const AFFIX_COUNT = [0, 1, 2, 3, 3, 4];
+const RARITY_MULT = [1, 1.1, 1.22, 1.38, 1.55, 1.55, 1.9];
+const AFFIX_COUNT = [0, 1, 2, 3, 3, 3, 4];
 /** Abyssal items never roll by chance (weight 0); they come from `generateAbyssal`. */
-const RARITY_WEIGHTS = [600, 280, 90, 25, 5, 0];
+const RARITY_WEIGHTS = [600, 280, 90, 25, 5, 4, 0];
 
 export const tierForLevel = (ilvl: number): number => Math.max(0, Math.min(5, Math.floor((ilvl - 1) / 6)));
 
@@ -92,11 +100,18 @@ function rollAffixes(
   count: number,
   exclude: StatKey[] = [],
   roll: AffixRoll = NORMAL_ROLL,
+  armorType?: ArmorType,
 ): Affix[] {
-  const pool = AFFIXES.filter((a) => a.slots.includes(slot) && !exclude.includes(a.stat));
+  // armor types favour their own stats (cloth: Magic, leather: crits, plate: Defense) and can roll them anywhere
+  const tw = armorType && isArmorSlot(slot) ? ARMOR[armorType].affixWeights : {};
+  const weight = (stat: StatKey, w: number): number => w * (tw[stat] ?? 1);
+  const pool = AFFIXES.filter(
+    (a) =>
+      (a.slots.includes(slot) || (tw[a.stat] ?? 0) > 1) && !exclude.includes(a.stat) && weight(a.stat, 1) > 0,
+  );
   const out: Affix[] = [];
   for (let i = 0; i < count && pool.length; i++) {
-    const def = rng.weighted(pool.map((a) => [a, a.weight] as const));
+    const def = rng.weighted(pool.map((a) => [a, weight(a.stat, a.weight)] as const));
     pool.splice(pool.indexOf(def), 1);
     const lo = def.min(ilvl);
     const hi = def.max(ilvl);
@@ -192,6 +207,53 @@ export interface GenerateOptions {
   rarity?: Rarity;
   rarityRoll?: RarityRoll;
   legendary?: LegendaryId;
+  armorType?: ArmorType;
+  set?: SetId;
+}
+
+const WEAPON_WEIGHTS = WEAPON_KINDS.map((k) => [k, k === 'sword' ? 3 : 2] as const);
+const rollSlot = (rng: RNG): GearSlot =>
+  rng.weighted(GEAR_SLOTS.map((s) => [s, s === 'weapon' ? 3 : 2] as const));
+
+/** Implicit stats for gear: the slot's base, shaped by its armor type, scaled by rarity. */
+function baseStats(
+  slot: Slot,
+  kind: WeaponKind | undefined,
+  ilvl: number,
+  ri: number,
+  armorType?: ArmorType,
+): Partial<Stats> {
+  const raw = slotBaseStats(slot, kind, ilvl);
+  if (armorType && isArmorSlot(slot)) {
+    const t = ARMOR[armorType];
+    if (raw.def) raw.def *= t.def;
+    if (raw.maxHp) raw.maxHp *= t.hp;
+    // cloth and plate gloves: Magic/armor instead of Attack
+    if (slot === 'gloves' && raw.atk && armorType !== 'mail') raw.atk *= armorType === 'leather' ? 0.8 : 0.4;
+    for (const [k, v] of Object.entries(t.extra(slot, ilvl)) as [StatKey, number][])
+      raw[k] = (raw[k] ?? 0) + v;
+  }
+  const base: Partial<Stats> = {};
+  for (const [k, v] of Object.entries(raw) as [StatKey, number][]) {
+    if (Math.abs(v) < 1e-9) continue;
+    base[k] = round(k, STAT_INFO[k].pct ? v : v * RARITY_MULT[ri]);
+  }
+  return base;
+}
+
+/** Roll whether a weapon is elemental, which element and how much it converts. */
+function rollElement(rng: RNG, ri: number): { element?: DamageElement; elemConv?: number } {
+  if (!rng.chance(ELEMENT_CHANCE[ri])) return {};
+  const [lo, hi] = CONVERSION[ri];
+  return { element: rng.pick(DAMAGE_ELEMENTS), elemConv: Math.round(rng.range(lo, hi) * 100) / 100 };
+}
+
+const rollArmorType = (rng: RNG): ArmorType => rng.weighted(ARMOR_WEIGHTS);
+
+/** Base name for gear: armor pieces are named by their type, the rest by tier. */
+function baseName(slot: Slot, kind: WeaponKind | undefined, tier: number, armorType?: ArmorType): string {
+  if (armorType && isArmorSlot(slot)) return armorName(armorType, slot, tier);
+  return TIER_NAMES[kind ?? slot][tier];
 }
 
 export function generateItem(rng: RNG, ilvl: number, opts: GenerateOptions = {}): Item {
@@ -199,41 +261,49 @@ export function generateItem(rng: RNG, ilvl: number, opts: GenerateOptions = {})
   if (opts.slot === 'charm') return generateCharm(rng, ilvl);
   if (opts.rarity === 'abyssal') return generateAbyssal(rng, ilvl, opts);
   let rarity = opts.rarity ?? rollRarity(rng, opts.rarityRoll);
+  if (opts.set) rarity = 'set';
+  if (rarity === 'set') {
+    const set = generateSetItem(rng, ilvl, opts);
+    if (set) return set;
+    rarity = 'legendary';
+  }
   let legendary = opts.legendary;
   if (legendary) rarity = 'legendary';
   let slot: Slot;
   let kind: WeaponKind | undefined;
+  let armorType: ArmorType | undefined;
+  let elem: { element?: DamageElement; elemConv?: number } = {};
+  const ri = RARITY_INDEX[rarity];
   if (rarity === 'legendary') {
     const def = legendary
-      ? LEGENDARIES.find((l) => l.id === legendary)!
+      ? LEGENDARY_BY_ID[legendary]
       : rng.pick(opts.slot ? LEGENDARIES.filter((l) => l.slot === opts.slot) : LEGENDARIES);
     legendary = def.id;
     slot = def.slot;
     kind = def.kind;
+    armorType = def.armorType ?? (isArmorSlot(slot) ? rollArmorType(rng) : undefined);
+    elem = def.element ? { element: def.element, elemConv: def.elemConv ?? 0.4 } : {};
   } else {
-    slot = opts.slot ?? rng.weighted(GEAR_SLOTS.map((s) => [s, s === 'weapon' ? 3 : 2] as const));
-    if (slot === 'weapon')
-      kind = opts.kind ?? rng.weighted(WEAPON_KINDS.map((k) => [k, k === 'sword' ? 3 : 2] as const));
+    slot = opts.slot ?? rollSlot(rng);
+    if (slot === 'weapon') {
+      kind = opts.kind ?? rng.weighted(WEAPON_WEIGHTS);
+      elem = rollElement(rng, ri);
+    }
+    if (isArmorSlot(slot)) armorType = opts.armorType ?? rollArmorType(rng);
   }
-  const ri = RARITY_INDEX[rarity];
   const tier = tierForLevel(ilvl);
-  const baseRaw = slotBaseStats(slot, kind, ilvl);
-  const base: Partial<Stats> = {};
-  for (const [k, v] of Object.entries(baseRaw) as [StatKey, number][]) {
-    base[k] = round(k, STAT_INFO[k].pct ? v : v * RARITY_MULT[ri]);
-  }
-  const affixes = rollAffixes(rng, slot, ilvl, AFFIX_COUNT[ri]);
+  const base = baseStats(slot, kind, ilvl, ri, armorType);
+  const affixes = rollAffixes(rng, slot, ilvl, AFFIX_COUNT[ri], [], NORMAL_ROLL, armorType);
   let name: string;
   if (legendary) {
-    const def = LEGENDARIES.find((l) => l.id === legendary)!;
+    const def = LEGENDARY_BY_ID[legendary];
     name = def.name;
     for (const [k, v] of Object.entries(def.bonus) as [StatKey, number][])
       affixes.unshift({ stat: k, value: v });
   } else {
-    const baseName = TIER_NAMES[kind ?? slot][tier];
     const pre = affixes[0] ? AFFIXES.find((a) => a.stat === affixes[0].stat)!.prefix + ' ' : '';
     const suf = affixes[1] && ri >= 2 ? ' ' + AFFIXES.find((a) => a.stat === affixes[1].stat)!.suffix : '';
-    name = `${pre}${baseName}${suf}`;
+    name = `${pre}${baseName(slot, kind, tier, armorType)}${suf}`;
   }
   return {
     uid: newUid(rng),
@@ -247,6 +317,42 @@ export function generateItem(rng: RNG, ilvl: number, opts: GenerateOptions = {})
     affixes,
     upgrade: 0,
     legendary,
+    armorType,
+    ...elem,
+    isNew: true,
+  };
+}
+
+/**
+ * A set item: a named piece of one of the item sets (optionally a given set or slot).
+ * Null if no piece fits the request.
+ */
+export function generateSetItem(rng: RNG, ilvl: number, opts: GenerateOptions = {}): Item | null {
+  ilvl = Math.max(1, Math.round(ilvl));
+  const options = (opts.set ? [opts.set] : SET_IDS).flatMap((id) =>
+    SETS[id].pieces
+      .filter((p) => !opts.slot || p.slot === opts.slot)
+      .map((p) => ({ set: SETS[id], piece: p })),
+  );
+  if (!options.length) return null;
+  const { set, piece } = rng.pick(options);
+  const ri = RARITY_INDEX.set;
+  const base = baseStats(piece.slot, piece.kind, ilvl, ri, piece.armorType);
+  const affixes = rollAffixes(rng, piece.slot, ilvl, AFFIX_COUNT[ri], [], NORMAL_ROLL, piece.armorType);
+  return {
+    uid: newUid(rng),
+    slot: piece.slot,
+    kind: piece.kind,
+    tier: tierForLevel(ilvl),
+    ilvl,
+    rarity: 'set',
+    name: piece.name,
+    base,
+    affixes,
+    upgrade: 0,
+    set: set.id,
+    armorType: piece.armorType,
+    ...(piece.slot === 'weapon' && set.element ? { element: set.element, elemConv: 0.5 } : {}),
     isNew: true,
   };
 }
@@ -275,6 +381,7 @@ const ABYSSAL_BONUS: readonly { stat: StatKey; lo: number; hi: number }[] = [
   { stat: 'critDmg', lo: 0.25, hi: 0.45 },
   { stat: 'atkSpeed', lo: 0.06, hi: 0.12 },
   { stat: 'cdr', lo: 0.05, hi: 0.1 },
+  { stat: 'elemDmg', lo: 0.15, hi: 0.3 },
 ];
 
 /** Roll 1..max sockets, favouring fewer. */
@@ -290,20 +397,13 @@ export function rollSockets(rng: RNG, slot: GearSlot): number {
  */
 export function generateAbyssal(rng: RNG, ilvl: number, opts: GenerateOptions = {}): Item {
   ilvl = Math.max(1, Math.round(ilvl));
-  const slot: GearSlot =
-    opts.slot && isGear(opts.slot)
-      ? opts.slot
-      : rng.weighted(GEAR_SLOTS.map((s) => [s, s === 'weapon' ? 3 : 2] as const));
-  const kind =
-    slot === 'weapon'
-      ? (opts.kind ?? rng.weighted(WEAPON_KINDS.map((k) => [k, k === 'sword' ? 3 : 2] as const)))
-      : undefined;
+  const slot: GearSlot = opts.slot && isGear(opts.slot) ? opts.slot : rollSlot(rng);
+  const kind = slot === 'weapon' ? (opts.kind ?? rng.weighted(WEAPON_WEIGHTS)) : undefined;
+  const armorType = isArmorSlot(slot) ? (opts.armorType ?? rollArmorType(rng)) : undefined;
   const ri = RARITY_INDEX.abyssal;
   const tier = tierForLevel(ilvl);
-  const base: Partial<Stats> = {};
-  for (const [k, v] of Object.entries(slotBaseStats(slot, kind, ilvl)) as [StatKey, number][])
-    base[k] = round(k, STAT_INFO[k].pct ? v : v * RARITY_MULT[ri]);
-  const affixes = rollAffixes(rng, slot, ilvl, AFFIX_COUNT[ri], [], ABYSSAL_ROLL);
+  const base = baseStats(slot, kind, ilvl, ri, armorType);
+  const affixes = rollAffixes(rng, slot, ilvl, AFFIX_COUNT[ri], [], ABYSSAL_ROLL, armorType);
   // one Abyssal bonus, plus more if the slot's own affix pool ran short (e.g. chest armor)
   const bonuses = ABYSSAL_BONUS.filter((b) => !affixes.some((a) => a.stat === b.stat));
   const want = AFFIX_COUNT[ri] + 1;
@@ -319,10 +419,12 @@ export function generateAbyssal(rng: RNG, ilvl: number, opts: GenerateOptions = 
     tier,
     ilvl,
     rarity: 'abyssal',
-    name: `Abyssal ${TIER_NAMES[kind ?? slot][tier]} ${suffix}`.trim(),
+    name: `Abyssal ${baseName(slot, kind, tier, armorType)} ${suffix}`.trim(),
     base,
     affixes,
     upgrade: 0,
+    armorType,
+    ...(slot === 'weapon' ? rollElement(rng, ri) : {}),
     sockets: new Array<null>(rollSockets(rng, slot)).fill(null),
     isNew: true,
   };
@@ -375,12 +477,13 @@ const SCORE_WEIGHTS: Record<StatKey, number> = {
   skillDmg: 90,
   dmgBonus: 150,
   dodgeCost: 40,
+  elemDmg: 80,
 };
 
 export function itemScore(item: Item): number {
   let s = 0;
   for (const [k, v] of Object.entries(itemStats(item)) as [StatKey, number][]) s += v * SCORE_WEIGHTS[k];
-  if (item.legendary) s *= 1.25;
+  if (item.legendary || item.set) s *= 1.25;
   // an empty socket is worth something: it can hold a gem later
   s += (item.sockets?.filter((g) => !g).length ?? 0) * 12;
   return Math.round(s);
@@ -402,7 +505,24 @@ export function formatStat(stat: StatKey, value: number, signed = true): string 
 export function itemTypeLabel(item: Item): string {
   if (item.slot === 'charm')
     return `${item.cursed ? 'Cursed ' : ''}${CHARM_INFO[item.charmSize ?? 'small'].name}`;
-  return item.slot === 'weapon' && item.kind ? WEAPON_LABEL[item.kind] : SLOT_LABEL[item.slot];
+  if (item.slot === 'weapon' && item.kind) return WEAPON_LABEL[item.kind];
+  const type = armorTypeOf(item);
+  return type ? `${ARMOR[type].label} ${SLOT_LABEL[item.slot]}` : SLOT_LABEL[item.slot];
+}
+
+/** Armor type of a helm/armor/gloves/boots/belt (older items without one are mail). */
+export function armorTypeOf(item: Item): ArmorType | undefined {
+  return isArmorSlot(item.slot) ? (item.armorType ?? 'mail') : undefined;
+}
+
+/** A weapon's element and conversion (older legendaries take theirs from the legendary). */
+export function weaponElement(
+  item: Item | null | undefined,
+): { element: DamageElement; conv: number } | null {
+  if (!item || item.slot !== 'weapon') return null;
+  if (item.element) return { element: item.element, conv: item.elemConv ?? 0.4 };
+  const def = item.legendary ? LEGENDARY_BY_ID[item.legendary] : undefined;
+  return def?.element ? { element: def.element, conv: def.elemConv ?? 0.4 } : null;
 }
 
 export function displayName(item: Item): string {
@@ -410,7 +530,7 @@ export function displayName(item: Item): string {
 }
 
 export function legendaryPower(item: Item): string | undefined {
-  return item.legendary ? LEGENDARIES.find((l) => l.id === item.legendary)?.power : undefined;
+  return item.legendary ? LEGENDARY_BY_ID[item.legendary]?.power : undefined;
 }
 
 /** Stat difference (candidate - current) for tooltips. */
@@ -460,5 +580,7 @@ export function isGear(slot: Slot): slot is GearSlot {
 /** Icon for any item (weapons by kind, charms by size). */
 export function itemIcon(item: Item): IconId {
   if (item.slot === 'charm') return `icon_charm_${item.charmSize ?? 'small'}`;
+  const type = armorTypeOf(item);
+  if (type && type !== 'mail' && isArmorSlot(item.slot)) return `icon_${item.slot}_${type}`;
   return SLOT_ICON[item.slot === 'weapon' ? (item.kind ?? 'sword') : item.slot];
 }

@@ -3,12 +3,15 @@
  * headline Damage / Toughness / Recovery numbers plus every stat, grouped and explained.
  */
 import { drawPortrait } from '../../art/anime';
+import { ARMOR } from '../../data/armor';
+import { ELEMENTS } from '../../data/elements';
 import { LEGENDARIES, WEAPON_LABEL } from '../../data/items';
+import { SETS } from '../../data/sets';
 import { drawText } from '../../engine/font';
 import type { Rect } from '../../engine/math';
 import { MAX_LEVEL, xpToNext } from '../../game/balance';
 import { paragonXpToNext } from '../../game/paragon';
-import { activeCharms } from '../../game/items';
+import { activeCharms, armorTypeOf } from '../../game/items';
 import { deriveStats, powerRating } from '../../game/stats';
 import { charmLimit } from '../../game/state';
 import { EQUIP_SLOTS } from '../../game/types';
@@ -49,7 +52,7 @@ export class StatsTab implements TabView {
     r(
       'Attack',
       num(st.atk),
-      'Raises the damage of melee weapons and Attack skills (Aether Slash, Whirlwind, Spectral Blades).',
+      'Raises the damage of melee weapons, bows, crossbows and Attack skills (Aether Slash, Whirlwind, Spectral Blades).',
     );
     r(
       'Magic',
@@ -62,7 +65,11 @@ export class StatsTab implements TabView {
       'Reduces the damage of every hit you take. Defense is less effective against higher-level foes.',
     );
     r('Max Health', num(st.maxHp), 'When this reaches zero, you fall.');
-    r('Max Mana', num(st.maxMp), 'Spent to use skills.');
+    r(
+      'Max Mana',
+      num(st.maxMp),
+      'Spent to use skills. Weapon hits restore mana (melee 2.5%, ranged 1.5% of max per hit).',
+    );
 
     h('Offense');
     r(
@@ -100,7 +107,22 @@ export class StatsTab implements TabView {
     r(
       'Weapon',
       `${WEAPON_LABEL[kind]} (${main})`,
-      'Swords are balanced, greatswords slow but wide, daggers fast with high crit, staves fire bolts that scale with Magic.',
+      'Swords are balanced, greatswords slow but wide, daggers fast with high crit. Bows and crossbows shoot with Attack; staves fire bolts that scale with Magic (mages lean on their spells).',
+    );
+    r(
+      'Weapon Element',
+      st.element === 'physical'
+        ? 'Physical'
+        : `${Math.round(st.elemConv * 100)}% ${ELEMENTS[st.element].label}`,
+      st.element === 'physical'
+        ? 'Your weapon deals physical damage, which armor reduces. Elemental weapons convert part of it.'
+        : `${ELEMENTS[st.element].effect} Elemental damage is only half blocked by armor, but some monsters resist it (and others are weak to it).`,
+      st.element === 'physical' ? undefined : UI.accent,
+    );
+    r(
+      'Elemental Damage',
+      pct(st.elemDmg, true),
+      'Increases the elemental part of your hits, from elemental weapons and spells (Fireball, Frost Nova, Chain Lightning, Meteor, Blizzard).',
     );
 
     h('Defense');
@@ -120,6 +142,20 @@ export class StatsTab implements TabView {
       'Damage Taken',
       pct(st.damageTaken),
       'Multiplier on all incoming damage (Tonic of Guarding lowers it).',
+    );
+    const armorCount = { cloth: 0, leather: 0, mail: 0, plate: 0 };
+    for (const slot of EQUIP_SLOTS) {
+      const it = s.equipment[slot];
+      const t = it ? armorTypeOf(it) : undefined;
+      if (t) armorCount[t]++;
+    }
+    r(
+      'Armor Worn',
+      (Object.keys(armorCount) as (keyof typeof armorCount)[])
+        .filter((k) => armorCount[k])
+        .map((k) => `${armorCount[k]} ${ARMOR[k].label}`)
+        .join(', ') || 'None',
+      'Cloth gives Magic but little armor or health; leather speed and crits; mail is balanced; plate is the toughest.',
     );
     r(
       'Dodge Roll Cost',
@@ -178,6 +214,19 @@ export class StatsTab implements TabView {
     );
 
     const powers: Row[] = [];
+    for (const [id, n] of st.setCounts) {
+      const set = SETS[id];
+      const active = set.bonuses.filter((b) => n >= b.pieces);
+      powers.push({
+        kind: 'stat',
+        label: set.name,
+        value: `${n}/${set.pieces.length}`,
+        desc: active.length
+          ? active.map((b) => `(${b.pieces}) ${b.desc}`).join(' ')
+          : `Wear ${set.bonuses[0].pieces} pieces for: ${set.bonuses[0].desc}`,
+        color: '#3ff0a0',
+      });
+    }
     for (const slot of EQUIP_SLOTS) {
       const it = s.equipment[slot];
       const def = it?.legendary ? LEGENDARIES.find((l) => l.id === it.legendary) : undefined;

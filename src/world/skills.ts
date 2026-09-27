@@ -3,6 +3,8 @@ import { audio } from '../audio';
 import type { ProjectileSpec } from '../data/enemies';
 import { bloodRiteBonus, bloodRiteDuration, SKILLS, skillMult, type SkillId } from '../data/skills';
 import { angleDiff, angleTo, dist } from '../engine/math';
+import { SURGE } from '../game/balance';
+import { OVERDRIVE } from '../game/stats';
 import type { Enemy } from './entities/enemy';
 import type { Player } from './entities/player';
 import type { World } from './world';
@@ -10,6 +12,7 @@ import type { World } from './world';
 export function castSkill(world: World, p: Player, id: SkillId, rank: number): void {
   const def = SKILLS[id];
   const mult = skillMult(def, rank);
+  const leg = world.game.stats().legendaries;
   switch (id) {
     case 'slash': {
       p.state = 'dash';
@@ -22,7 +25,8 @@ export function castSkill(world: World, p: Player, id: SkillId, rank: number): v
     }
     case 'whirlwind': {
       p.state = 'free';
-      p.whirl = { t: 0.8, tick: 0, mult };
+      // Tempest Sash: twice as long
+      p.whirl = { t: leg.has('tempest_sash') ? 1.6 : 0.8, tick: 0, mult };
       break;
     }
     case 'fireball': {
@@ -35,14 +39,18 @@ export function castSkill(world: World, p: Player, id: SkillId, rank: number): v
         scale: 1.3,
         explode: { radius: 32, dmg: mult, status: { kind: 'burn', duration: 3, power: 0.3 } },
       };
-      world.spawnPlayerProjectile(
-        spec,
-        p.x + Math.cos(p.aim) * 8,
-        p.y - 8 + Math.sin(p.aim) * 8,
-        p.aim,
-        0,
-        'mag',
-      );
+      // Pyrelord's Grip: three fireballs
+      const angles = leg.has('pyres_grip') ? [p.aim - 0.3, p.aim, p.aim + 0.3] : [p.aim];
+      for (const a of angles)
+        world.spawnPlayerProjectile(
+          spec,
+          p.x + Math.cos(a) * 8,
+          p.y - 8 + Math.sin(a) * 8,
+          a,
+          0,
+          'mag',
+          def.element,
+        );
       audio.playSfx('fireball');
       break;
     }
@@ -59,6 +67,7 @@ export function castSkill(world: World, p: Player, id: SkillId, rank: number): v
           dir: angleTo(p.x, p.y, e.x, e.y),
           isSkill: true,
           status: { kind: 'freeze', duration: freeze },
+          element: def.element,
         });
       }
       world.shake(3, 0.2);
@@ -85,7 +94,9 @@ export function castSkill(world: World, p: Player, id: SkillId, rank: number): v
     }
     case 'lightning': {
       audio.playSfx('lightning');
-      const max = 3 + rank + world.game.stats().passives.chains;
+      // Stormweave Wraps: three more jumps and 30% more damage
+      const storm = leg.has('stormweave');
+      const max = 3 + rank + world.game.stats().passives.chains + (storm ? 3 : 0);
       const hit: Enemy[] = [];
       let fromX = p.x;
       let fromY = p.y - 10;
@@ -107,10 +118,11 @@ export function castSkill(world: World, p: Player, id: SkillId, rank: number): v
         pts.push({ x: target.x, y: target.y - 6 });
         world.playerHit(target, {
           power: 'mag',
-          mult,
+          mult: storm ? mult * 1.3 : mult,
           knock: 30,
           dir: angleTo(fromX, fromY, target.x, target.y),
           isSkill: true,
+          element: def.element,
         });
         fromX = target.x;
         fromY = target.y - 6;
@@ -132,28 +144,40 @@ export function castSkill(world: World, p: Player, id: SkillId, rank: number): v
     }
     case 'blades': {
       audio.playSfx('blades');
-      p.blades = { t: 7, count: 3 + Math.floor((rank - 1) / 2), angle: 0, mult, hitCd: new Map() };
+      // Bladedancer's Girdle: three more blades
+      const count = 3 + Math.floor((rank - 1) / 2) + (leg.has('bladedancer') ? 3 : 0);
+      p.blades = { t: 7, count, angle: 0, mult, hitCd: new Map() };
       break;
     }
     case 'meteor': {
       const { x: tx, y: ty } = aimPoint(world, p, 170);
       audio.playSfx('meteor_fall');
-      world.playerHazard(
-        {
-          shape: 'circle',
-          x: tx,
-          y: ty,
-          radius: 48,
-          delay: 0.75,
-          duration: 0,
-          mult,
-          status: { kind: 'burn', duration: 3, power: 0.35 },
-          color: '#f77622',
-          visual: 'meteor',
-        },
-        'mag',
-      );
-      world.meteorFall(tx, ty, 0.75);
+      // Starfall Diadem: two more meteors around the target
+      const drops = [{ x: tx, y: ty, delay: 0.75 }];
+      if (leg.has('starfall'))
+        for (const k of [0, 1]) {
+          const a = p.aim + (k ? 1 : -1) * 1.9;
+          drops.push({ x: tx + Math.cos(a) * 44, y: ty + Math.sin(a) * 36, delay: 0.95 + k * 0.2 });
+        }
+      for (const d of drops) {
+        world.playerHazard(
+          {
+            shape: 'circle',
+            x: d.x,
+            y: d.y,
+            radius: 48,
+            delay: d.delay,
+            duration: 0,
+            mult,
+            status: { kind: 'burn', duration: 3, power: 0.35 },
+            color: '#f77622',
+            visual: 'meteor',
+          },
+          'mag',
+          def.element,
+        );
+        world.meteorFall(d.x, d.y, d.delay);
+      }
       break;
     }
     case 'shadowstep':
@@ -203,6 +227,7 @@ export function castSkill(world: World, p: Player, id: SkillId, rank: number): v
           visual: 'ice',
         },
         'mag',
+        def.element,
       );
       break;
     }
@@ -311,8 +336,9 @@ function shadowStep(world: World, p: Player, mult: number): void {
 /** Aether Cannon: the ultimate — a Dragon Ball–style beam fired after its cut-in. */
 export function fireCannon(world: World, p: Player): void {
   const shards = Math.max(1, world.shardCount());
-  const total = 5 + shards * 1.2;
-  const dur = 1.2;
+  // total damage to each enemy caught in the beam, in multiples of your best damage stat
+  const total = SURGE.beam + shards * SURGE.perShard;
+  const dur = SURGE.duration;
   // aim assist: favour the boss or the nearest enemy roughly in front
   let angle = p.aim;
   const boss = world.boss && world.boss.targetable ? world.boss : null;
@@ -344,17 +370,28 @@ export function fireCannon(world: World, p: Player): void {
   world.zoomAt(p.x, p.y - 8, 1.35, 0.3);
   // a close-range shockwave so the ultimate is never wasted
   world.novaEffect(p.x, p.y - 6, 56, 'arcane');
-  const st = world.game.stats();
-  for (const e of world.enemiesNear(p.x, p.y, 70)) {
-    if (dist(p.x, p.y, e.x, e.y) > 56 + e.radius) continue;
+  for (const e of world.enemiesNear(p.x, p.y, 80)) {
+    if (dist(p.x, p.y, e.x, e.y) > 64 + e.radius) continue;
     world.playerHit(e, {
       power: 'custom',
-      customPower: (st.atk + st.mag) / 2,
-      mult: 1.5,
-      knock: 200,
+      customPower: surgePower(world),
+      mult: SURGE.nova,
+      knock: 220,
       dir: angleTo(p.x, p.y, e.x, e.y),
       isSkill: true,
       noSurge: true,
+      element: 'physical',
     });
   }
+  // Aether Overdrive: the power lingers after the beam
+  const buffs = world.game.buffs;
+  buffs.overdrive = OVERDRIVE.duration + dur;
+  world.game.invalidateStats();
+  world.popText(p.x, p.y - 34, 'OVERDRIVE!', '#2ce8f5', { big: true });
+}
+
+/** The Surge scales with whichever of Attack and Magic is higher. */
+export function surgePower(world: World): number {
+  const st = world.game.stats();
+  return Math.max(st.atk, st.mag);
 }

@@ -203,7 +203,8 @@ export class Game {
       const icon = itemIcon(item);
       this.toast(`{${item.rarity}}${displayName(item)}{/}`, icon, item.tier);
     }
-    if (item.rarity === 'legendary' || item.rarity === 'abyssal') audio.playSfx('stinger_legendary');
+    if (item.rarity === 'legendary' || item.rarity === 'set' || item.rarity === 'abyssal')
+      audio.playSfx('stinger_legendary');
     this.events.emit('itemLooted', { item });
     return true;
   }
@@ -245,11 +246,12 @@ export class Game {
       this.quests.checkChallenges();
     }
     let changed = false;
-    for (const k of ['might', 'guard', 'fortune', 'rite'] as const) {
+    for (const k of ['might', 'guard', 'fortune', 'rite', 'overdrive', 'frenzy'] as const) {
       if (this.buffs[k] <= 0) continue;
       this.buffs[k] -= dt;
       if (this.buffs[k] <= 0) changed = true;
     }
+    if (this.buffs.frenzy <= 0) this.buffs.frenzyStacks = 0;
     if (changed) this.invalidateStats();
   }
 }

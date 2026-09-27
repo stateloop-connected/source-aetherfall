@@ -43,7 +43,7 @@ describe('item generation', () => {
   it('respects the minimum rarity', () => {
     const rng = new RNG(9);
     for (let i = 0; i < 300; i++)
-      expect(['rare', 'epic', 'legendary']).toContain(rollRarity(rng, { min: 'rare' }));
+      expect(['rare', 'epic', 'legendary', 'set']).toContain(rollRarity(rng, { min: 'rare' }));
   });
 
   it('magic find shifts the distribution upward', () => {

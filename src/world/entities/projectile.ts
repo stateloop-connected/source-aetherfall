@@ -2,6 +2,7 @@
 import { getSprite, spriteInfo } from '../../art/pixel';
 import type { ProjectileSpec } from '../../data/enemies';
 import { angleDiff, dist } from '../../engine/math';
+import type { Element } from '../../game/types';
 import type { World } from '../world';
 import { Entity, type Actor, type Faction } from './actor';
 
@@ -13,6 +14,8 @@ export interface ProjectileOwner {
   stat?: 'atk' | 'mag';
   isSkill?: boolean;
   source?: Actor;
+  /** Player spells: their element (weapon shots follow the weapon). */
+  element?: Element;
 }
 
 export class Projectile extends Entity {
@@ -26,6 +29,14 @@ export class Projectile extends Entity {
   /** Chain lightning on hit (Stormcaller). */
   chain = 0;
   glow: string | null = null;
+  /** A weapon shot (basic attack): restores MP on hit. */
+  basic = false;
+  /** Explodes on hitting an enemy, hurting others around it (Siegebreaker, blazing arrows). */
+  blast: { radius: number; mult: number } | null = null;
+  /** Elemental particle trail colour. */
+  trail: string | null = null;
+  /** Knockback on hit. */
+  knock = 50;
 
   constructor(
     x: number,
@@ -68,6 +79,15 @@ export class Projectile extends Entity {
     }
     this.x += this.vx * dt;
     this.y += this.vy * dt;
+    if (this.trail && Math.random() < 0.6)
+      world.particles.emit(this.x, this.y, {
+        count: 1,
+        color: [this.trail, '#ffffff'],
+        speed: [0, 12],
+        life: [0.12, 0.28],
+        emissive: true,
+        shape: 'glow',
+      });
     // walls stop projectiles (liquids don't)
     const c = world.map.cell(Math.floor(this.x / 16), Math.floor((this.y + 6) / 16));
     if (c === 1 || c === 3 || c === 5) {

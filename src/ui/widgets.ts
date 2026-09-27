@@ -11,6 +11,7 @@ import { pointInRect, type Rect } from '../engine/math';
 import { sellPrice } from '../game/balance';
 import { gemEffect, gemName, socketGroup } from '../game/gems';
 import {
+  armorTypeOf,
   displayName,
   formatStat,
   itemIcon,
@@ -19,7 +20,11 @@ import {
   itemTypeLabel,
   RARITY_INDEX,
   statDiff,
+  weaponElement,
 } from '../game/items';
+import { ARMOR } from '../data/armor';
+import { ELEMENTS } from '../data/elements';
+import { SETS, setPieceCounts } from '../data/sets';
 import type { Item, StatKey } from '../game/types';
 import { STAT_INFO } from '../game/types';
 
@@ -225,12 +230,14 @@ export function drawSocketPips(
 export function itemTooltipLines(
   item: Item,
   compare: Item | null,
-  opts: { price?: 'sell' | number } = {},
+  opts: { price?: 'sell' | number; worn?: readonly (Item | null)[] } = {},
 ): string[] {
   const lines: string[] = [];
   lines.push(`{${item.rarity}}${displayName(item)}{/}`);
-  const rarityName = item.rarity[0].toUpperCase() + item.rarity.slice(1);
+  const rarityName = item.rarity === 'set' ? 'Set' : item.rarity[0].toUpperCase() + item.rarity.slice(1);
   lines.push(`{gray}${rarityName} ${itemTypeLabel(item)} • iLvl ${item.ilvl}{/}`);
+  const armor = armorTypeOf(item);
+  if (armor && item.armorType) lines.push(`{gray}${ARMOR[armor].desc}{/}`);
   const power = itemScore(item);
   if (compare && compare !== item) {
     const d = power - itemScore(compare);
@@ -256,10 +263,20 @@ export function itemTooltipLines(
       lines.push(`{red}${formatStat(k, d)}{/}`);
     }
   }
+  const el = weaponElement(item);
+  if (el) {
+    const info = ELEMENTS[el.element];
+    lines.push('');
+    lines.push(
+      `{${el.element}}${info.label}: ${Math.round(el.conv * 100)}% of physical damage becomes ${info.label.toLowerCase()}{/}`,
+    );
+    lines.push(`{gray}${info.effect} Armor blocks it less.{/}`);
+  }
   if (item.sockets?.length) {
     lines.push('');
     lines.push(...socketLines(item));
   }
+  if (item.set) lines.push('', ...setLines(item, opts.worn));
   if (item.legendary) {
     const def = LEGENDARIES.find((l) => l.id === item.legendary);
     if (def) {
@@ -271,6 +288,19 @@ export function itemTooltipLines(
   if (opts.price === 'sell')
     lines.push(`{gold}Sell: ${sellPrice(item.ilvl, RARITY_INDEX[item.rarity], item.upgrade)}g{/}`);
   else if (typeof opts.price === 'number') lines.push(`{gold}Price: ${opts.price}g{/}`);
+  return lines;
+}
+
+/** A set item's set: its pieces (worn ones bright) and bonuses (active ones bright). */
+export function setLines(item: Item, worn: readonly (Item | null)[] = []): string[] {
+  const set = SETS[item.set!];
+  const wornNames = new Set(worn.filter((w) => w?.set === set.id).map((w) => w!.name));
+  const n = setPieceCounts(worn).get(set.id) ?? 0;
+  const lines = [`{set}${set.name} (${n}/${set.pieces.length}){/}`];
+  for (const p of set.pieces)
+    lines.push(wornNames.has(p.name) ? `{set}  • ${p.name}{/}` : `{gray}  • ${p.name}{/}`);
+  for (const b of set.bonuses)
+    lines.push(n >= b.pieces ? `{set}(${b.pieces}) ${b.desc}{/}` : `{gray}(${b.pieces}) ${b.desc}{/}`);
   return lines;
 }
 

@@ -1,9 +1,34 @@
 /** Core gameplay types shared between systems, UI and save data. */
 import type { IconId, WeaponKind } from '../art/pixel/types';
 
-/** `abyssal` is the top tier: it never rolls by chance and only drops in the Abyss. */
-export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'abyssal';
-export const RARITIES: readonly Rarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'abyssal'];
+/**
+ * `set` items belong to an item set (Diablo 3 style) and sit beside legendaries.
+ * `abyssal` is the top tier: it never rolls by chance and only drops in the Abyss.
+ */
+export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'set' | 'abyssal';
+export const RARITIES: readonly Rarity[] = [
+  'common',
+  'uncommon',
+  'rare',
+  'epic',
+  'legendary',
+  'set',
+  'abyssal',
+];
+
+/** Damage elements. Physical damage is reduced by armor; elemental damage by resistances. */
+export type Element = 'physical' | 'fire' | 'ice' | 'lightning' | 'poison';
+export type DamageElement = Exclude<Element, 'physical'>;
+export const DAMAGE_ELEMENTS: readonly DamageElement[] = ['fire', 'ice', 'lightning', 'poison'];
+
+/** Armor weights (Diablo style): cloth trades toughness for Magic, plate the reverse. */
+export type ArmorType = 'cloth' | 'leather' | 'mail' | 'plate';
+export const ARMOR_TYPES: readonly ArmorType[] = ['cloth', 'leather', 'mail', 'plate'];
+/** Gear that comes in armor types. */
+export type ArmorSlot = 'helm' | 'armor' | 'gloves' | 'boots' | 'belt';
+export const ARMOR_SLOTS: readonly ArmorSlot[] = ['helm', 'armor', 'gloves', 'boots', 'belt'];
+export const isArmorSlot = (slot: string): slot is ArmorSlot =>
+  (ARMOR_SLOTS as readonly string[]).includes(slot);
 
 /** Item types. Charms are never equipped: they work from the bag. */
 export type Slot = 'weapon' | 'helm' | 'armor' | 'gloves' | 'belt' | 'boots' | 'ring' | 'amulet' | 'charm';
@@ -77,6 +102,8 @@ export interface Stats {
   skillDmg: number;
   dmgBonus: number;
   dodgeCost: number;
+  /** Bonus to the elemental part of your damage. */
+  elemDmg: number;
 }
 
 export type StatKey = keyof Stats;
@@ -102,6 +129,7 @@ export const ZERO_STATS: Readonly<Stats> = Object.freeze({
   skillDmg: 0,
   dmgBonus: 0,
   dodgeCost: 0,
+  elemDmg: 0,
 });
 
 /** How to display a stat in the UI. */
@@ -126,6 +154,7 @@ export const STAT_INFO: Record<StatKey, { label: string; pct: boolean }> = {
   skillDmg: { label: 'Skill Damage', pct: true },
   dmgBonus: { label: 'Damage', pct: true },
   dodgeCost: { label: 'Dodge Cost', pct: true },
+  elemDmg: { label: 'Elemental Damage', pct: true },
 };
 
 export type LegendaryId =
@@ -138,7 +167,39 @@ export type LegendaryId =
   | 'phoenix_band'
   | 'stormcaller'
   | 'vampire_kiss'
-  | 'echo_blade';
+  | 'echo_blade'
+  // weapons
+  | 'frostreaver'
+  | 'venomfang'
+  | 'lightbringer'
+  | 'sunstrike'
+  | 'galeforce'
+  | 'siegebreaker'
+  | 'thunderlord'
+  | 'pestilence'
+  // armor and jewelry
+  | 'robe_archmage'
+  | 'aegis_dawn'
+  | 'starfall'
+  | 'mask_berserker'
+  | 'pyres_grip'
+  | 'stormweave'
+  | 'emberstride'
+  | 'tempest_sash'
+  | 'bladedancer'
+  | 'sprinters_oath'
+  | 'band_ascendant'
+  | 'serpent_eye';
+
+export type SetId =
+  | 'warden'
+  | 'whisperwind'
+  | 'archmage'
+  | 'stormlord'
+  | 'emberforged'
+  | 'venomcaller'
+  | 'frostbound'
+  | 'deadeye';
 
 export interface Affix {
   stat: StatKey;
@@ -161,6 +222,14 @@ export interface Item {
   /** Blacksmith upgrade level 0..10. */
   upgrade: number;
   legendary?: LegendaryId;
+  /** Set items: the set this piece belongs to. */
+  set?: SetId;
+  /** Weapons: the element part of the damage is converted to (see elemConv). */
+  element?: DamageElement;
+  /** Weapons: fraction of physical damage converted to `element` (0-1). */
+  elemConv?: number;
+  /** Helms, armor, gloves, boots and belts. Older items have none and count as mail. */
+  armorType?: ArmorType;
   locked?: boolean;
   isNew?: boolean;
   /** Charms only. */

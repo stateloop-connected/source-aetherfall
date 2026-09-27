@@ -72,6 +72,12 @@ export class Player extends Actor {
   veilT = 0;
   /** Retaliation cooldown. */
   retaliateCd = 0;
+  /** Warden of the Mountain: shockwave-when-hit cooldown. */
+  wardenCd = 0;
+  /** Whisperwind Regalia: empowered hits left after a dodge. */
+  ambushHits = 0;
+  /** Arrows fired (Sunstrike's every 4th arrow). */
+  shotCount = 0;
   /** Spell Echo: a skill about to be cast again for free. */
   echoCast: { id: SkillId; rank: number; t: number } | null = null;
   /** Juggernaut: enemies already smashed by the current roll. */
@@ -143,6 +149,7 @@ export class Player extends Actor {
     this.lastStandCd = Math.max(0, this.lastStandCd - dt);
     this.veilT = Math.max(0, this.veilT - dt);
     this.retaliateCd = Math.max(0, this.retaliateCd - dt);
+    this.wardenCd = Math.max(0, this.wardenCd - dt);
     if (this.echoCast) {
       this.echoCast.t -= dt;
       if (this.echoCast.t <= 0 && this.state !== 'dead') {
@@ -278,6 +285,8 @@ export class Player extends Actor {
           if (d.hit.has(e)) continue;
           d.hit.add(e);
           world.playerHit(e, { power: 'atk', mult: d.mult, knock: 140, dir: d.angle, isSkill: true });
+          // Sprinter's Oath: a kill resets Aether Slash
+          if (e.dead && world.game.stats().legendaries.has('sprinters_oath')) this.cooldowns.slash = 0;
         }
         if (d.t >= d.dur) {
           this.state = 'free';
@@ -407,12 +416,7 @@ export class Player extends Actor {
   private fireSwing(world: World, sw: Swing): void {
     const kind = this.weaponKind;
     if (WEAPON_FEEL[kind].ranged) {
-      audio.playSfx('staff_bolt');
-      const shots = sw.combo === 3 ? 3 : 1;
-      for (let i = 0; i < shots; i++) {
-        const a = sw.aim + (shots > 1 ? (i - 1) * 0.22 : 0);
-        world.spawnPlayerBolt(this.x + Math.cos(a) * 8, this.y - 8 + Math.sin(a) * 8, a, sw.mult);
-      }
+      this.fireShots(world, sw, kind);
       return;
     }
     audio.playSfx(kind === 'greatsword' ? 'swing_heavy' : kind === 'dagger' ? 'swing_light' : 'swing');
@@ -420,6 +424,10 @@ export class Player extends Actor {
     const st = world.game.stats();
     if (sw.combo === 3) {
       if (st.legendaries.has('dragonbreath')) world.fireWave(this, sw.aim);
+      if (st.setPowers.has('warden_quake')) {
+        const d = sw.range * 0.8;
+        world.shockwave(this.x + Math.cos(sw.aim) * d, this.y + Math.sin(sw.aim) * d, 46, 2.5);
+      }
       if (st.passives.bladeStorm) world.slashGale(this, sw.aim, 0.7);
       if (st.asc.has('wb_earthshaker'))
         world.shockwave(
@@ -433,9 +441,12 @@ export class Player extends Actor {
   }
 
   private swingHits(world: World, sw: Swing): void {
+    const st = world.game.stats();
     for (const e of world.enemiesNear(this.x, this.y - 4, sw.range + 16)) {
       if (sw.hit.has(e)) continue;
       if (!world.inSector(e, this.x, this.y - 4, sw.range, sw.aim, sw.arc / 2)) continue;
+      // Lightbringer: the finisher's first hit calls down lightning
+      if (sw.combo === 3 && !sw.hit.size && st.legendaries.has('lightbringer')) world.skyStrike(e, st.atk, 2);
       sw.hit.add(e);
       world.playerHit(e, {
         power: 'atk',
@@ -443,8 +454,57 @@ export class Player extends Actor {
         knock: sw.knock,
         dir: sw.aim,
         heavy: sw.combo === 3,
+        basic: true,
       });
     }
+  }
+
+  /** Ranged weapons: staff bolts, arrows and crossbow bolts. The third combo hit is a finisher. */
+  private fireShots(world: World, sw: Swing, kind: WeaponKind): void {
+    const st = world.game.stats();
+    const third = sw.combo === 3;
+    const deadeye = st.setPowers.has('deadeye_volley');
+    const at = (a: number): { x: number; y: number } => ({
+      x: this.x + Math.cos(a) * 8,
+      y: this.y - 8 + Math.sin(a) * 8,
+    });
+    const fan = (n: number, spread: number, fn: (a: number) => void): void => {
+      for (let i = 0; i < n; i++) fn(sw.aim + (n > 1 ? (i - (n - 1) / 2) * spread : 0));
+    };
+    if (kind === 'staff') {
+      audio.playSfx('staff_bolt');
+      // the finisher fans three weaker bolts
+      fan(third ? 3 : 1, 0.22, (a) => {
+        const o = at(a);
+        world.spawnPlayerShot(kind, o.x, o.y, a, third ? sw.mult * 0.45 : sw.mult);
+      });
+      return;
+    }
+    if (kind === 'crossbow') {
+      audio.playSfx('arrow_shoot', { pitch: 0.7 });
+      const o = at(sw.aim);
+      world.spawnPlayerShot(kind, o.x, o.y, sw.aim, sw.mult, {
+        pierce: third ? 99 : 1,
+        big: third,
+        blast: st.legendaries.has('siegebreaker') ? { radius: 36, mult: 0.8 } : undefined,
+      });
+      return;
+    }
+    // bow: one arrow, a volley on the finisher (Deadeye adds two more to every shot)
+    audio.playSfx('arrow_shoot');
+    const n = (third ? 3 : 1) + (deadeye ? 2 : 0);
+    const each = third ? sw.mult * 0.45 : deadeye ? sw.mult * 0.6 : sw.mult;
+    fan(n, third ? 0.2 : 0.14, (a) => {
+      this.shotCount++;
+      const blazing = st.legendaries.has('sunstrike') && this.shotCount % 4 === 0;
+      const o = at(a);
+      world.spawnPlayerShot(kind, o.x, o.y, a, each, {
+        pierce: (st.legendaries.has('galeforce') ? 2 : 0) + (third && deadeye ? 3 : 0),
+        knock: st.legendaries.has('galeforce') ? 140 : undefined,
+        blast: blazing ? { radius: 34, mult: 1.5 } : undefined,
+        big: blazing,
+      });
+    });
   }
 
   // ------------------------------------------------------------------ roll ----
@@ -474,7 +534,17 @@ export class Player extends Actor {
       life: [0.2, 0.4],
     });
     if (st.legendaries.has('windwalkers')) world.gust(this, this.rollAngle);
+    if (st.setPowers.has('whisper_ambush')) this.ambushHits = 3;
+    if (st.legendaries.has('emberstride')) world.fireTrail(this.x, this.y, this.rollAngle);
     return true;
+  }
+
+  /** MP a skill costs right now (talents, the Archmage set and cheats lower it). */
+  skillCost(id: SkillId, world: World): number {
+    if (world.game.cheat('freeSkills')) return 0;
+    const st = world.game.stats();
+    const archmage = st.setPowers.has('archmage_nova') ? 0.3 : 0;
+    return Math.round(SKILLS[id].mp * (1 - Math.min(0.6, st.passives.mpCost + archmage)));
   }
 
   // ---------------------------------------------------------------- skills ----
@@ -492,7 +562,7 @@ export class Player extends Actor {
     }
     const st = world.game.stats();
     const free = world.game.cheat('freeSkills');
-    const cost = free ? 0 : Math.round(def.mp * (1 - Math.min(0.5, st.passives.mpCost)));
+    const cost = this.skillCost(id, world);
     if (this.mp < cost) {
       audio.playSfx('no_mana');
       world.popText(this.x, this.y - 22, 'Not enough MP', '#0099db', { small: true });
@@ -511,6 +581,8 @@ export class Player extends Actor {
     this.castT = 0.18;
     this.aim = this.assistedAim(world, 180, 0.6);
     castSkill(world, this, id, rank);
+    // Vestments of the Archmage: every cast pulses arcane power around you
+    if (st.setPowers.has('archmage_nova')) world.burst(this.x, this.y, 56, st.mag, 2, 'physical');
     // Spell Echo: some spells may fire a second time
     if (st.asc.has('am_echo') && ECHO_SKILLS.includes(id) && Math.random() < 0.25)
       this.echoCast = { id, rank, t: 0.3 };

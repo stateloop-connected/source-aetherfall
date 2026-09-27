@@ -26,6 +26,9 @@ export interface QuestTalk {
   cutscene?: string;
 }
 
+/** Quest and bounty XP is scaled down so levels come more slowly. */
+export const QUEST_XP_MULT = 0.7;
+
 export class QuestSystem {
   constructor(private game: Game) {
     game.events.on('enemyKilled', (e) => this.onKill(e.id));
@@ -178,7 +181,7 @@ export class QuestSystem {
       audio.playSfx('stinger_legendary');
       g.toast(`New skill learned: {gold}${SKILLS[r.skill].name}{/}`, SKILLS[r.skill].icon);
     }
-    if (r.xp) g.giveXp(r.xp);
+    if (r.xp) g.giveXp(r.xp * QUEST_XP_MULT);
   }
 
   // ------------------------------------------------------------ triggers ----
@@ -342,7 +345,7 @@ export class QuestSystem {
     this.game.toast(`Bounty complete: ${ENEMIES[b.enemy].name}`, 'ui_skull');
     this.game.giveGold(b.gold);
     addMaterial(this.save, 'dust', b.dust);
-    this.game.giveXp(b.xp);
+    this.game.giveXp(b.xp * QUEST_XP_MULT);
     this.save.flags['bounties_done'] = (this.save.flags['bounties_done'] ?? 0) + 1;
   }
 

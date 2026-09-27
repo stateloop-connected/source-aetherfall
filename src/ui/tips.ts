@@ -15,10 +15,17 @@ const TIPS: Record<string, string> = {
   elite: 'Elite monsters glow with colored auras. They hit hard, but always drop rare loot.',
   flask:
     'Low on health? Drink a Health Flask with [potionHp]. Flasks refill whenever you rest at an Aether Crystal.',
-  surge: 'Aether Surge is fully charged! Unleash it with [ultimate] for massive damage.',
+  surge:
+    'Aether Surge is fully charged! Unleash it with [ultimate]: a devastating beam, then 10s of Overdrive (+30% damage and attack speed).',
   crystal:
     'Aether Crystals heal you, refill flasks, save your game and let you fast travel. Resting also revives monsters.',
-  skills: 'New skill unlocked! Use skills with [skill1]–[skill4]. Assign and rank them up in the menu.',
+  skills:
+    'New skill unlocked! Use skills with [skill1]–[skill4]. Weapon hits restore mana, so attack to fuel your skills, then spend it: skills hit far harder than basic attacks.',
+  portalbar:
+    'The icons at the right of your action bar: Aether Surge charges as you fight, and the portal opens a Town Portal [townPortal]. You can click them too.',
+  element:
+    'An elemental weapon! Part of its damage becomes fire, ice, lightning or poison: armor blocks it less and it adds an effect, but some monsters resist it.',
+  sets: 'A set item! Wear more pieces of the same set for growing bonuses. Its tooltip shows the whole set.',
   perfect:
     'Rolling at the very last moment triggers a Perfect Dodge: time slows and your Surge charges faster.',
   portal:
@@ -65,6 +72,10 @@ export class Tips {
       this.show('crystal');
     if (this.save.hero.level >= 2) this.show('level');
     if (this.save.hero.level >= 3) this.show('skills');
+    if (this.save.hero.level >= 4 && !isTown(w.data.id)) this.show('portalbar');
+    if (this.save.inventory.some((i) => i.element) || this.save.equipment.weapon?.element)
+      this.show('element');
+    if (this.save.inventory.some((i) => i.set)) this.show('sets');
     if (this.save.stats.kills >= 15) this.show('perfect');
     if (this.save.inventory.length >= bagSize(this.save) - 2 && !isTown(w.data.id)) this.show('portal');
     if (hasFlag(this.save, TRIALS[0].requires) && w.data.id === 'town') this.show('trial');

@@ -409,7 +409,7 @@ export class HeroTab implements TabView {
       return lines;
     }
     const compare = this.sel.kind === 'doll' ? null : compareTarget(this.save, it);
-    const lines = itemTooltipLines(it, compare, { price: 'sell' });
+    const lines = itemTooltipLines(it, compare, { price: 'sell', worn: Object.values(this.save.equipment) });
     if (it.sockets?.some((g) => !g) && totalGems(this.save) > 0)
       lines.push('{gray}Socket gems from the Gems tab.{/}');
     if (this.sel.kind === 'bag') {

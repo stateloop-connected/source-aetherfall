@@ -202,11 +202,16 @@ function carveCorridor(
 
 // ------------------------------------------------------------ zones ----
 
-export function generateZone(def: ZoneDef): MapData {
-  const rng = new RNG(def.seed);
+/**
+ * Generate one of a zone's layouts. Every layout keeps the same points of interest
+ * (entrance, both crystals, the guardian gate, quest markers, chests and signs).
+ */
+export function generateZone(def: ZoneDef, layout = 0): MapData {
+  const seed = `${def.seed}#${layout}`;
+  const rng = new RNG(seed);
   const { w, h } = def;
   const g = new Grid(w, h, CELL.Wall);
-  const noise = valueNoise(RNG.hashString(def.seed));
+  const noise = valueNoise(RNG.hashString(seed));
 
   // Key points
   const exitEdge = OPPOSITE[def.entry];
@@ -413,6 +418,13 @@ export function generateZone(def: ZoneDef): MapData {
   }
   for (const [x, y] of trunk) markClear(x, y, 1);
 
+  // Everything placed below must be reachable from the entrance
+  const reach = g.flood(startX, startY);
+  const openNear = (x: number, y: number): { x: number; y: number } => findOpenNear(g, occupied, x, y, reach);
+  const reachableRoom = (r: Room): boolean => reach[Math.round(r.y) * w + Math.round(r.x)] >= 0;
+  for (let i = rooms.length - 1; i >= 0; i--)
+    if (rooms[i].kind === 'normal' && !reachableRoom(rooms[i])) rooms.splice(i, 1);
+
   // Objects
   const objects: MapObject[] = [];
   const props: PropPlacement[] = [];
@@ -442,7 +454,7 @@ export function generateZone(def: ZoneDef): MapData {
   occupy(gateFront.x, gateFront.y, 2);
 
   // Crystals
-  const cA = findOpenNear(g, occupied, Math.round(entryRoomC.x) + 2, Math.round(entryRoomC.y));
+  const cA = openNear(Math.round(entryRoomC.x) + 2, Math.round(entryRoomC.y));
   objects.push({
     kind: 'crystal',
     id: `${def.id}_crystal_a`,
@@ -452,7 +464,7 @@ export function generateZone(def: ZoneDef): MapData {
   });
   props.push({ id: 'save_crystal', x: px(cA.x), y: px(cA.y) + 4 });
   occupy(cA.x, cA.y, 2);
-  const cB = findOpenNear(g, occupied, Math.round(exitRoomC.x) - 2, Math.round(exitRoomC.y));
+  const cB = openNear(Math.round(exitRoomC.x) - 2, Math.round(exitRoomC.y));
   objects.push({
     kind: 'crystal',
     id: `${def.id}_crystal_b`,
@@ -480,12 +492,7 @@ export function generateZone(def: ZoneDef): MapData {
   occupy(entrySpawn.x, entrySpawn.y, 3);
 
   // Sign near the entry
-  const signP = findOpenNear(
-    g,
-    occupied,
-    inward(def.entry, entryEdge, 5).x + 3,
-    inward(def.entry, entryEdge, 5).y,
-  );
+  const signP = openNear(inward(def.entry, entryEdge, 5).x + 3, inward(def.entry, entryEdge, 5).y);
   objects.push({
     kind: 'sign',
     id: `${def.id}_sign`,
@@ -499,17 +506,12 @@ export function generateZone(def: ZoneDef): MapData {
   // Chests
   const normal = rooms.filter((r) => r.kind === 'normal');
   const sortedByDepth = [...normal].sort((a, b) => b.depth - a.depth);
-  const chestRooms = rng.shuffle([...normal]).slice(0, Math.min(5, normal.length));
+  const chestRooms = rng.shuffle([...normal]).slice(0, Math.min(8, normal.length));
   const rareRoom = sortedByDepth[0];
   let ci = 0;
   for (const room of chestRooms) {
     const rare = room === rareRoom;
-    const p = findOpenNear(
-      g,
-      occupied,
-      Math.round(room.x + rng.range(-2, 2)),
-      Math.round(room.y + rng.range(-2, 2)),
-    );
+    const p = openNear(Math.round(room.x + rng.range(-2, 2)), Math.round(room.y + rng.range(-2, 2)));
     objects.push({
       kind: 'chest',
       id: `${def.id}_chest_${ci++}`,
@@ -522,7 +524,7 @@ export function generateZone(def: ZoneDef): MapData {
     occupy(p.x, p.y, 1);
   }
   if (!chestRooms.includes(rareRoom) && rareRoom) {
-    const p = findOpenNear(g, occupied, Math.round(rareRoom.x), Math.round(rareRoom.y));
+    const p = openNear(Math.round(rareRoom.x), Math.round(rareRoom.y));
     objects.push({
       kind: 'chest',
       id: `${def.id}_chest_${ci}`,
@@ -538,7 +540,7 @@ export function generateZone(def: ZoneDef): MapData {
   // Quest markers in mid-depth rooms
   const mid = [...normal].sort((a, b) => Math.abs(a.depth - 0.5) - Math.abs(b.depth - 0.5));
   mid.slice(0, 3).forEach((room, i) => {
-    const p = findOpenNear(g, occupied, Math.round(room.x), Math.round(room.y) - 1);
+    const p = openNear(Math.round(room.x), Math.round(room.y) - 1);
     objects.push({ kind: 'marker', id: `${def.id}_marker_${i}`, x: px(p.x), y: px(p.y) });
   });
 
@@ -563,7 +565,7 @@ export function generateZone(def: ZoneDef): MapData {
   }
   // Guaranteed champions deep in the zone
   for (const room of sortedByDepth.slice(0, 2)) {
-    const p = findOpenNear(g, occupied, Math.round(room.x), Math.round(room.y));
+    const p = openNear(Math.round(room.x), Math.round(room.y));
     spawns.push({
       enemy: rng.weighted(def.enemies),
       level: levelAt(room.depth) + 1,
@@ -640,14 +642,21 @@ export function generateZone(def: ZoneDef): MapData {
   };
 }
 
-function findOpenNear(g: Grid, occupied: Uint8Array, x: number, y: number): { x: number; y: number } {
-  for (let r = 0; r < 12; r++) {
+function findOpenNear(
+  g: Grid,
+  occupied: Uint8Array,
+  x: number,
+  y: number,
+  reach?: Int32Array,
+): { x: number; y: number } {
+  for (let r = 0; r < 24; r++) {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
         const nx = x + dx;
         const ny = y + dy;
         if (!g.walkable(nx, ny) || occupied[ny * g.w + nx]) continue;
+        if (reach && reach[ny * g.w + nx] < 0) continue;
         // want a little breathing room
         let open = 0;
         for (const [ax, ay] of DIRS4) if (g.walkable(nx + ax, ny + ay)) open++;
