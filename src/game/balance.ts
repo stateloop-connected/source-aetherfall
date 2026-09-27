@@ -55,7 +55,7 @@ export interface DifficultyMods {
 
 export const DIFFICULTY: Record<Difficulty, DifficultyMods> = {
   story: {
-    enemyHp: 0.8,
+    enemyHp: 0.9,
     enemyDmg: 0.6,
     enemySpeed: 0.9,
     eliteChance: 0.04,
@@ -72,7 +72,7 @@ export const DIFFICULTY: Record<Difficulty, DifficultyMods> = {
     desc: 'Enjoy the tale. Fewer, softer enemies and you keep all gold on death.',
   },
   normal: {
-    enemyHp: 1.4,
+    enemyHp: 1.7,
     enemyDmg: 1.55,
     enemySpeed: 1,
     eliteChance: 0.1,
@@ -89,7 +89,7 @@ export const DIFFICULTY: Record<Difficulty, DifficultyMods> = {
     desc: 'The intended challenge. Enemies hit hard and come in packs: learn their patterns, dodge, and grind if stuck.',
   },
   hard: {
-    enemyHp: 2.2,
+    enemyHp: 2.7,
     enemyDmg: 2.4,
     enemySpeed: 1.1,
     eliteChance: 0.17,
@@ -106,7 +106,7 @@ export const DIFFICULTY: Record<Difficulty, DifficultyMods> = {
     desc: 'Bigger packs of tough, fast, aggressive enemies and many elites. +30% rare loot, +20% gold, slower levelling.',
   },
   nightmare: {
-    enemyHp: 3.2,
+    enemyHp: 3.9,
     enemyDmg: 3.6,
     enemySpeed: 1.18,
     eliteChance: 0.26,
@@ -227,7 +227,7 @@ export function computeDamage(i: DamageInput): DamageResult {
 }
 
 /** Weapon hits restore this fraction of max MP (Aether) per enemy hit, so skills can follow. */
-export const MP_ON_HIT = { melee: 0.025, ranged: 0.015 };
+export const MP_ON_HIT = { melee: 0.012, ranged: 0.008 };
 
 /**
  * Aether Surge charge per hit (and multiplier for skill hits), when hurt, per perfect

@@ -68,7 +68,7 @@ export class StatsTab implements TabView {
     r(
       'Max Mana',
       num(st.maxMp),
-      'Spent to use skills. Weapon hits restore mana (melee 2.5%, ranged 1.5% of max per hit).',
+      'Spent to use skills. Weapon hits restore mana (melee 1.2%, ranged 0.8% of max per hit).',
     );
 
     h('Offense');
