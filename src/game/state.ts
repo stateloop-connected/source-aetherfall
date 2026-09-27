@@ -4,6 +4,7 @@
  */
 import type { SkillId } from '../data/skills';
 import { SKILLS, SKILL_ORDER } from '../data/skills';
+import { ZONES } from '../data/zones';
 import {
   BAG_STEP,
   BASE_BAG,
@@ -18,7 +19,7 @@ import { newAscendancy, type AscendancyState } from './ascendancy';
 import { newParagon, paragonXpToNext, type ParagonState } from './paragon';
 import type { ConsumableId, Difficulty, EquipSlot, Item, MaterialId } from './types';
 
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 export interface QuestState {
   id: string;
@@ -117,6 +118,8 @@ export interface SaveData {
   worldBoss: WorldBossEvent | null;
   /** Play time when the next world boss event begins (-1 = not scheduled yet). */
   worldBossNext: number;
+  /** The layout each zone currently uses (a new one is picked when you walk in from town). */
+  layouts: Record<string, number>;
 }
 
 export interface WorldBossEvent {
@@ -192,6 +195,7 @@ export function newGame(slot: number, name: string, difficulty: Difficulty): Sav
     respawn: { map: 'town', x: -1, y: -1 },
     discovered: ['town_crystal'],
     explored: {},
+    layouts: {},
     bestiary: {},
     stats: {
       kills: 0,
@@ -297,7 +301,7 @@ export function addItem(s: SaveData, item: Item): boolean {
   if (inventoryFull(s)) return false;
   s.inventory.push(item);
   s.stats.itemsFound++;
-  if (item.rarity === 'legendary') s.stats.legendaries++;
+  if (item.rarity === 'legendary' || item.rarity === 'set') s.stats.legendaries++;
   if (item.rarity === 'abyssal') s.stats.abyssals++;
   return true;
 }
@@ -416,6 +420,11 @@ export function migrate(raw: unknown): SaveData | null {
   // v5 -> v6: the stash is shared between slots; a per-slot stash is kept only until
   // the game moves it into the shared one (Game.setSave)
   if (!s.stash?.tabs?.some((t) => t.length)) delete merged.stash;
+  // v7 -> v8: zones became bigger with several layouts; old map exploration no longer fits
+  if ((s.version ?? 0) < 8) {
+    merged.layouts = {};
+    for (const id of Object.keys(merged.explored)) if (ZONES[id]) delete merged.explored[id];
+  }
   syncUnlockedSkills(merged);
   return merged;
 }

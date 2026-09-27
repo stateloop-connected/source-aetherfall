@@ -1,6 +1,6 @@
 /** Crafting logic: can this recipe be made, and making it (pure, on the save). */
 import { MATERIALS } from '../data/items';
-import type { Recipe } from '../data/recipes';
+import { IMBUE_CONVERSION, type Recipe } from '../data/recipes';
 import type { RNG } from '../engine/rng';
 import { addSocket, generateCharm, generateItem, isGear, RARITY_INDEX } from './items';
 import { addConsumable, addItem, addMaterial, inventoryFull, type SaveData } from './state';
@@ -14,7 +14,8 @@ export type CraftResult =
   | { kind: 'item'; item: Item }
   | { kind: 'consumable'; id: ConsumableId; count: number }
   | { kind: 'material'; id: MaterialId; count: number }
-  | { kind: 'socket'; item: Item };
+  | { kind: 'socket'; item: Item }
+  | { kind: 'imbue'; item: Item };
 
 /** Why a recipe can't be crafted right now, or null if it can. */
 export function craftBlocker(s: SaveData, r: Recipe): string | null {
@@ -24,7 +25,15 @@ export function craftBlocker(s: SaveData, r: Recipe): string | null {
   const k = r.result.kind;
   if ((k === 'gear' || k === 'charm') && inventoryFull(s)) return 'Your bag is full.';
   if (k === 'socket' && !socketTargets(s).length) return 'No rare-or-better gear without sockets.';
+  if (k === 'imbue' && !imbueTargets(s).length)
+    return 'No weapon to imbue (legendary and set weapons keep theirs).';
   return null;
+}
+
+/** Weapons an imbue can be used on: any weapon except legendaries and set pieces. */
+export function imbueTargets(s: SaveData): Item[] {
+  const worn = s.equipment.weapon ? [s.equipment.weapon] : [];
+  return [...worn, ...s.inventory].filter((i) => i.slot === 'weapon' && !i.legendary && !i.set);
 }
 
 /** Items a Socket Punch can be used on: rare-or-better gear with no sockets yet. */
@@ -43,6 +52,7 @@ export function craft(s: SaveData, r: Recipe, rng: RNG, target?: Item): CraftRes
   if (craftBlocker(s, r)) return null;
   const res = r.result;
   if (res.kind === 'socket' && (!target || !socketTargets(s).includes(target))) return null;
+  if (res.kind === 'imbue' && (!target || !imbueTargets(s).includes(target))) return null;
   for (const [id, n] of Object.entries(r.materials) as [MaterialId, number][]) addMaterial(s, id, -n);
   s.hero.gold -= r.gold(s.hero.level);
   switch (res.kind) {
@@ -71,5 +81,9 @@ export function craft(s: SaveData, r: Recipe, rng: RNG, target?: Item): CraftRes
     case 'socket':
       addSocket(target!);
       return { kind: 'socket', item: target! };
+    case 'imbue':
+      target!.element = res.element;
+      target!.elemConv = Math.max(target!.elemConv ?? 0, IMBUE_CONVERSION);
+      return { kind: 'imbue', item: target! };
   }
 }

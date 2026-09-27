@@ -213,6 +213,7 @@ export class Input {
   private curActions = new Set<Action>();
   /** Actions whose key went down this frame (even if released again before we polled). */
   private forcePressed = new Set<Action>();
+  private suppressed = new Set<Action>();
 
   // menu auto-repeat
   private repeatTimers = new Map<Action, number>();
@@ -348,6 +349,19 @@ export class Input {
     this.virtualDown.clear();
   }
 
+  /** Press an action for this frame only (on-screen buttons). */
+  setVirtualPress(action: Action): void {
+    this.curActions.add(action);
+    this.forcePressed.add(action);
+  }
+
+  /** Ignore an action until its keys/buttons are released (a click used by the HUD). */
+  suppress(action: Action): void {
+    this.curActions.delete(action);
+    this.forcePressed.delete(action);
+    this.suppressed.add(action);
+  }
+
   // ---- touch bridge -------------------------------------------------------
   setVirtual(action: Action, isDown: boolean): void {
     if (isDown && !this.virtualDown.has(action)) this.virtualPressed.add(action);
@@ -366,6 +380,10 @@ export class Input {
     this.curActions = new Set();
     for (const a of ACTIONS) {
       if (this.rawDown(a)) this.curActions.add(a);
+    }
+    for (const a of this.suppressed) {
+      if (this.curActions.has(a)) this.curActions.delete(a);
+      else this.suppressed.delete(a);
     }
     // just-pressed keys that were released within the same frame still count as pressed
     for (const a of ACTIONS) {

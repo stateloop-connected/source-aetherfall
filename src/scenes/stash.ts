@@ -409,7 +409,15 @@ export class StashScene implements Scene {
     const tipX = wide ? sx + gridW + 8 : bx;
     const tipY = wide ? top : top + this.bagRows * CELL + 6;
     const tipW = wide ? x + w - tipX - 6 : w - 16;
-    if (it) drawTooltip(ctx, itemTooltipLines(it, null), tipX, tipY, tipW, y + h - 18 - tipY);
+    if (it)
+      drawTooltip(
+        ctx,
+        itemTooltipLines(it, null, { worn: Object.values(this.game.save.equipment) }),
+        tipX,
+        tipY,
+        tipW,
+        y + h - 18 - tipY,
+      );
 
     const input = this.game.app.input;
     const hints: [string, string][] = this.held

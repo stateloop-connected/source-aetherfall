@@ -1,5 +1,6 @@
 /** Town services: Mira's shop, Brom's forge, the bounty board, the inn and talent respec. */
 import { audio } from '../audio';
+import { QUEST_XP_MULT } from '../game/quests';
 import { CONSUMABLES, SHOP_CONSUMABLES } from '../data/items';
 import { ENEMIES } from '../data/enemies';
 import type { Service } from '../data/npcs';
@@ -626,7 +627,13 @@ export class SmithScene extends TabbedService {
         const fresh =
           it.slot === 'charm'
             ? generateCharm(rng, it.ilvl, { size: it.charmSize })
-            : generateItem(rng, it.ilvl, { slot: it.slot, kind: it.kind, rarity: it.rarity });
+            : generateItem(rng, it.ilvl, {
+                slot: it.slot,
+                kind: it.kind,
+                rarity: it.rarity,
+                armorType: it.armorType,
+                set: it.set,
+              });
         // sockets (and any gems in them) are kept
         it.affixes = fresh.affixes;
         it.name = fresh.name;
@@ -770,7 +777,13 @@ export class BoardScene extends TabbedService {
       const e = ENEMIES[b.enemy];
       drawText(ctx, `Slay ${b.count} × {gold}${e.name}{/}`, x + 2, y - 10);
       drawText(ctx, `in ${ZONES[b.zone].name}`, x + 2, y, { color: UI.dim });
-      drawText(ctx, `${b.gold}g  •  ${b.xp} XP  •  ${b.dust} dust`, x + 2, y + 10, { color: UI.accent });
+      drawText(
+        ctx,
+        `${b.gold}g  •  ${Math.round(b.xp * QUEST_XP_MULT)} XP  •  ${b.dust} dust`,
+        x + 2,
+        y + 10,
+        { color: UI.accent },
+      );
     });
     let y = f.y + 16 + 3 * 34 + 10;
     drawText(ctx, `Active bounties (${s.bounties.length}/3):`, f.x + 8, y, { color: UI.dim });

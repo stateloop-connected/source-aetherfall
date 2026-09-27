@@ -1,4 +1,5 @@
 /** Telegraphed ground effects: they warn first, then hurt (optionally lingering). */
+import type { Element } from '../../game/types';
 import type { StatusSpec } from '../../data/enemies';
 import { circleHitsLine, circleInSector, dist, TAU } from '../../engine/math';
 import type { World } from '../world';
@@ -31,6 +32,8 @@ export interface HazardOwner {
   source?: Actor;
   stat?: 'atk' | 'mag';
   isSkill?: boolean;
+  /** Player spells: their element (weapon-skill hazards follow the weapon). */
+  element?: Element;
 }
 
 export class Hazard extends Entity {

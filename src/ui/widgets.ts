@@ -19,7 +19,10 @@ import {
   itemTypeLabel,
   RARITY_INDEX,
   statDiff,
+  weaponElement,
 } from '../game/items';
+import { ELEMENTS } from '../data/elements';
+import { SETS, setPieceCounts } from '../data/sets';
 import type { Item, StatKey } from '../game/types';
 import { STAT_INFO } from '../game/types';
 
@@ -225,11 +228,11 @@ export function drawSocketPips(
 export function itemTooltipLines(
   item: Item,
   compare: Item | null,
-  opts: { price?: 'sell' | number } = {},
+  opts: { price?: 'sell' | number; worn?: readonly (Item | null)[] } = {},
 ): string[] {
   const lines: string[] = [];
   lines.push(`{${item.rarity}}${displayName(item)}{/}`);
-  const rarityName = item.rarity[0].toUpperCase() + item.rarity.slice(1);
+  const rarityName = item.rarity === 'set' ? 'Set' : item.rarity[0].toUpperCase() + item.rarity.slice(1);
   lines.push(`{gray}${rarityName} ${itemTypeLabel(item)} • iLvl ${item.ilvl}{/}`);
   const power = itemScore(item);
   if (compare && compare !== item) {
@@ -256,10 +259,19 @@ export function itemTooltipLines(
       lines.push(`{red}${formatStat(k, d)}{/}`);
     }
   }
+  const el = weaponElement(item);
+  if (el) {
+    const info = ELEMENTS[el.element];
+    lines.push('');
+    lines.push(
+      `{${el.element}}${Math.round(el.conv * 100)}% ${info.label} damage{/} {gray}(${info.brief}){/}`,
+    );
+  }
   if (item.sockets?.length) {
     lines.push('');
     lines.push(...socketLines(item));
   }
+  if (item.set) lines.push('', ...setLines(item, opts.worn));
   if (item.legendary) {
     const def = LEGENDARIES.find((l) => l.id === item.legendary);
     if (def) {
@@ -271,6 +283,26 @@ export function itemTooltipLines(
   if (opts.price === 'sell')
     lines.push(`{gold}Sell: ${sellPrice(item.ilvl, RARITY_INDEX[item.rarity], item.upgrade)}g{/}`);
   else if (typeof opts.price === 'number') lines.push(`{gold}Price: ${opts.price}g{/}`);
+  return lines;
+}
+
+/** A set item's set: bonuses (active ones bright), then its pieces on one line (worn ones bright). */
+export function setLines(item: Item, worn: readonly (Item | null)[] = []): string[] {
+  const set = SETS[item.set!];
+  const wornNames = new Set(worn.filter((w) => w?.set === set.id).map((w) => w!.name));
+  const n = setPieceCounts(worn).get(set.id) ?? 0;
+  const lines = [`{set}${set.name} (${n}/${set.pieces.length}){/}`];
+  for (const b of set.bonuses)
+    lines.push(n >= b.pieces ? `{set}(${b.pieces}) ${b.desc}{/}` : `{gray}(${b.pieces}) ${b.desc}{/}`);
+  lines.push(
+    set.pieces
+      .map((p) => {
+        // the set's name is already above: "Archmage's Robe" → "Robe"
+        const short = p.name.split(' ').slice(1).join(' ') || p.name;
+        return wornNames.has(p.name) ? `{set}${short}{/}` : `{gray}${short}{/}`;
+      })
+      .join('{gray}, {/}'),
+  );
   return lines;
 }
 

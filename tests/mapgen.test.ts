@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ENEMIES } from '../src/data/enemies';
-import { ZONES } from '../src/data/zones';
+import { ZONE_LAYOUTS, ZONES } from '../src/data/zones';
 import { floodFloor, generateAbyssFloor } from '../src/world/abyss';
 import { CELL, TILE, type MapData } from '../src/world/mapdata';
 import { generateArena, generateZone } from '../src/world/mapgen';
@@ -37,17 +37,31 @@ function reachable(m: MapData, sx: number, sy: number): Uint8Array {
 
 const at = (m: MapData, x: number, y: number): number => Math.floor(y / TILE) * m.w + Math.floor(x / TILE);
 
-describe.each(Object.keys(ZONES))('zone %s', (id) => {
-  const m = generateZone(ZONES[id]);
+const LAYOUTS = Object.keys(ZONES).flatMap((id) =>
+  Array.from({ length: ZONE_LAYOUTS }, (_, layout) => [id, layout] as const),
+);
+
+describe.each(LAYOUTS)('zone %s, layout %i', (id, layout) => {
+  const m = generateZone(ZONES[id], layout);
 
   it('is deterministic', () => {
-    expect(Array.from(generateZone(ZONES[id]).cells)).toEqual(Array.from(m.cells));
+    expect(Array.from(generateZone(ZONES[id], layout).cells)).toEqual(Array.from(m.cells));
+  });
+
+  it('keeps every point of interest', () => {
+    const ids = m.objects.map((o) => o.id);
+    for (const k of [`${id}_crystal_a`, `${id}_crystal_b`, `${id}_gate`, `${id}_exit`, `${id}_sign`])
+      expect(ids).toContain(k);
+    for (let i = 0; i < 3; i++) expect(ids).toContain(`${id}_marker_${i}`);
+    expect(m.objects.filter((o) => o.kind === 'chest').length).toBeGreaterThanOrEqual(5);
+    expect(m.spawnPoints.entry).toBeDefined();
+    expect(m.spawnPoints.from_boss).toBeDefined();
   });
 
   it('connects the entry to every crystal, chest and the boss gate', () => {
     const seen = reachable(m, m.spawnPoints.entry.x, m.spawnPoints.entry.y);
     for (const o of m.objects) {
-      if (o.kind === 'crystal' || o.kind === 'chest')
+      if (o.kind === 'crystal' || o.kind === 'chest' || o.kind === 'marker')
         expect(seen[at(m, o.x, o.y - 4)], `${o.kind} ${o.id}`).toBe(1);
     }
     expect(seen[at(m, m.spawnPoints.from_boss.x, m.spawnPoints.from_boss.y - 8)]).toBe(1);

@@ -2,14 +2,15 @@
 import { EMPTY_PASSIVES, PASSIVE_BY_ID, type PassiveEffects } from '../data/skills';
 import type { WeaponKind } from '../art/pixel/types';
 import { WEAPON_FEEL } from '../data/items';
+import { SETS, setPieceCounts, type SetPower } from '../data/sets';
 import { defenseReduction, heroBaseStats } from './balance';
 import { ASC_NODE_BY_ID } from '../data/ascendancy';
 import { itemStats } from './items';
 import { paragonBonuses } from './paragon';
 import type { SaveData } from './state';
 import { BASE_FLASK_HP, BASE_FLASK_MP } from './state';
-import type { Item, LegendaryId, StatKey, Stats } from './types';
-import { activeCharms, equipTargetFor } from './items';
+import type { Element, Item, LegendaryId, SetId, StatKey, Stats } from './types';
+import { activeCharms, equipTargetFor, weaponElement } from './items';
 import { EQUIP_SLOTS } from './types';
 
 /** Timed buffs (seconds remaining). */
@@ -21,6 +22,11 @@ export interface Buffs {
   rite: number;
   /** Blood Rite's damage bonus while active. */
   riteBonus: number;
+  /** Aether Overdrive: after the Aether Cannon fires. */
+  overdrive: number;
+  /** Mask of the Berserker: frenzy time left and stacks. */
+  frenzy: number;
+  frenzyStacks: number;
 }
 
 export const NO_BUFFS: Readonly<Buffs> = Object.freeze({
@@ -29,7 +35,15 @@ export const NO_BUFFS: Readonly<Buffs> = Object.freeze({
   fortune: 0,
   rite: 0,
   riteBonus: 0,
+  overdrive: 0,
+  frenzy: 0,
+  frenzyStacks: 0,
 });
+
+/** Aether Overdrive (after the Surge): damage and attack speed bonus, and how long it lasts. */
+export const OVERDRIVE = { dmg: 0.3, atkSpeed: 0.2, duration: 10 };
+/** Frenzy (Mask of the Berserker) per stack. */
+export const FRENZY = { perStack: 0.05, max: 6, duration: 5 };
 
 export interface HeroStats extends Stats {
   legendaries: Set<LegendaryId>;
@@ -41,6 +55,12 @@ export interface HeroStats extends Stats {
   flaskPotency: number;
   /** Incoming damage multiplier. */
   damageTaken: number;
+  /** The weapon's element and the fraction of its damage converted to it. */
+  element: Element;
+  elemConv: number;
+  /** Set pieces worn per set, and the set powers they unlock. */
+  setCounts: Map<SetId, number>;
+  setPowers: Set<SetPower>;
 }
 
 export function passiveEffects(s: SaveData): PassiveEffects {
@@ -64,11 +84,26 @@ export function computeHeroStats(s: SaveData, buffs?: Buffs): HeroStats {
     if (it.legendary) legendaries.add(it.legendary);
   }
   const p = passiveEffects(s);
+  // item sets
+  const setCounts = setPieceCounts(EQUIP_SLOTS.map((sl) => s.equipment[sl]));
+  const setPowers = new Set<SetPower>();
+  const setStats: Partial<Stats> = {};
+  for (const [id, n] of setCounts) {
+    for (const b of SETS[id].bonuses) {
+      if (n < b.pieces) continue;
+      for (const [k, v] of Object.entries(b.stats ?? {}) as [StatKey, number][])
+        setStats[k] = (setStats[k] ?? 0) + v;
+      for (const [k, v] of Object.entries(b.passives ?? {}) as [keyof PassiveEffects, number][]) p[k] += v;
+      if (b.power) setPowers.add(b.power);
+    }
+  }
   const para = paragonBonuses(s.hero.paragon);
   for (const [k, v] of Object.entries(para.passives) as [keyof PassiveEffects, number][]) p[k] += v;
   const st: Stats = { ...base };
   for (const [k, v] of Object.entries(gear) as [StatKey, number][]) st[k] += v;
+  for (const [k, v] of Object.entries(setStats) as [StatKey, number][]) st[k] += v;
   for (const [k, v] of Object.entries(para.stats) as [StatKey, number][]) st[k] += v;
+  if (legendaries.has('robe_archmage')) p.magPct += 0.4;
   const asc = new Set<string>();
   let ascTaken = 1;
   for (const id of s.ascendancy?.nodes ?? []) {
@@ -102,7 +137,8 @@ export function computeHeroStats(s: SaveData, buffs?: Buffs): HeroStats {
   st.hpRegen += st.maxHp * p.hpRegenPctMax;
   if (legendaries.has('windwalkers')) st.dodgeCost += 0.5;
 
-  let damageTaken = para.damageTaken * ascTaken * (1 - p.damageReduction);
+  let damageTaken = para.damageTaken * ascTaken * (1 - Math.min(0.6, p.damageReduction));
+  if (legendaries.has('robe_archmage')) damageTaken *= 1.2;
   if (buffs && buffs.might > 0) st.dmgBonus += 0.2;
   if (buffs && buffs.guard > 0) damageTaken *= 0.8;
   if (buffs && buffs.fortune > 0) {
@@ -112,6 +148,14 @@ export function computeHeroStats(s: SaveData, buffs?: Buffs): HeroStats {
   if (buffs && buffs.rite > 0) {
     st.dmgBonus += buffs.riteBonus;
     st.lifesteal += 0.05;
+  }
+  if (buffs && buffs.overdrive > 0) {
+    st.dmgBonus += OVERDRIVE.dmg;
+    st.atkSpeed += OVERDRIVE.atkSpeed;
+  }
+  if (buffs && buffs.frenzy > 0) {
+    st.dmgBonus += FRENZY.perStack * buffs.frenzyStacks;
+    st.atkSpeed += FRENZY.perStack * buffs.frenzyStacks;
   }
 
   // caps
@@ -128,10 +172,15 @@ export function computeHeroStats(s: SaveData, buffs?: Buffs): HeroStats {
   st.maxMp = Math.round(st.maxMp);
 
   const flaskBonus = Math.round(p.flaskCharges);
+  const we = weaponElement(s.equipment.weapon);
   return {
     ...st,
     legendaries,
     asc,
+    element: we?.element ?? 'physical',
+    elemConv: we?.conv ?? 0,
+    setCounts,
+    setPowers,
     passives: p,
     flaskHpMax: BASE_FLASK_HP + s.hero.flaskUpgrades + flaskBonus,
     flaskMpMax: BASE_FLASK_MP + Math.floor(s.hero.flaskUpgrades / 2) + flaskBonus,
@@ -181,10 +230,12 @@ export function deriveStats(level: number, st: HeroStats, weapon: WeaponKind): D
     { mult: 1.5, time: feel.windup * 1.4 + feel.active + feel.recover * 1.35 },
   ];
   const cycle = combo.reduce((n, c) => n + c.time, 0) / speed;
-  const scaling = feel.ranged ? 'mag' : 'atk';
+  const scaling = feel.stat;
   const power = scaling === 'mag' ? st.mag : st.atk;
   const avgMult = combo.reduce((n, c) => n + c.mult, 0) / combo.length;
-  const hitAvg = power * feel.dmg * avgMult * (1 + st.dmgBonus);
+  // the elemental part of each hit gets the Elemental Damage bonus
+  const elemental = 1 - st.elemConv + st.elemConv * (1 + st.elemDmg);
+  const hitAvg = power * feel.dmg * avgMult * (1 + st.dmgBonus) * elemental;
   const critMultiplier = 1 + st.crit * st.critDmg;
   const attacksPerSec = combo.length / cycle;
   const dps = hitAvg * critMultiplier * attacksPerSec;

@@ -202,7 +202,8 @@ export class Pickup extends Entity {
         else if (this.item && this.item.rarity !== 'common') {
           // loot beam
           const col = RARITY_COLORS[this.item.rarity];
-          const hgt = this.item.rarity === 'legendary' ? 60 : this.item.rarity === 'epic' ? 44 : 30;
+          const top = this.item.rarity === 'legendary' || this.item.rarity === 'set';
+          const hgt = top ? 60 : this.item.rarity === 'epic' ? 44 : 30;
           const grd = ctx.createLinearGradient(0, y - hgt, 0, y);
           grd.addColorStop(0, 'rgba(0,0,0,0)');
           grd.addColorStop(1, col);

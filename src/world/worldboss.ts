@@ -180,6 +180,8 @@ export class WorldBossDirector {
   }
 
   private spawn(ev: WorldBossEvent): void {
+    // a spot from an older save or layout that is no longer open ground
+    if (!this.world.map.walkableAt(ev.x, ev.y)) Object.assign(ev, worldBossSpot(this.world.data, rng));
     const e = new Enemy(enemyDef(ev.boss), ev.level, ev.x, ev.y, this.world.game.difficulty);
     e.worldBoss = true;
     e.hp = Math.max(1, Math.round(e.maxHp * ev.hpFrac));

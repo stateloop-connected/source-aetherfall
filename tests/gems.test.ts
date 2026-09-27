@@ -160,8 +160,9 @@ describe('abyssal items', () => {
       expect(n).toBeGreaterThanOrEqual(1);
       expect(n).toBeLessThanOrEqual(MAX_SOCKETS[it.slot as keyof typeof MAX_SOCKETS]);
     }
-    const abyssal = generateAbyssal(rng, 40, { slot: 'armor' });
+    // same armor type, so only the rarity differs
     const legendary = generateItem(rng, 40, { legendary: LEGENDARIES.find((l) => l.slot === 'armor')!.id });
+    const abyssal = generateAbyssal(rng, 40, { slot: 'armor', armorType: legendary.armorType });
     expect(abyssal.base.def!).toBeGreaterThan(legendary.base.def!);
     expect(generateItem(rng, 40, { rarity: 'abyssal' }).rarity).toBe('abyssal');
   });

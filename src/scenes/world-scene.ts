@@ -125,6 +125,7 @@ export class WorldScene implements Scene, WorldHooks {
       else if (this.game.settings.devMode && input.keyPressed('Backquote')) this.openMenu('dev');
     }
     this.world.inputBlocked = this.busy || this.game.app.fading;
+    if (!this.world.inputBlocked && !this.world.cutin) this.hud.handleClick(this.world);
     this.world.update(dt);
     this.hud.update(dt, this.world);
     if (!this.busy) this.tips.update(dt);

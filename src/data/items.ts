@@ -1,8 +1,10 @@
 /** Static item data: base types, affix pools, legendary uniques, consumables and materials. */
 import type { IconId, WeaponKind } from '../art/pixel/types';
 import type {
+  ArmorType,
   ConsumableDef,
   ConsumableId,
+  DamageElement,
   LegendaryId,
   MaterialDef,
   MaterialId,
@@ -24,6 +26,15 @@ export const TIER_NAMES: Record<Slot | WeaponKind, readonly string[]> = {
   ],
   dagger: ['Chipped Knife', 'Iron Dagger', 'Steel Stiletto', 'Crystal Fang', 'Ember Kris', 'Aether Needle'],
   staff: ['Oak Staff', 'Iron Rod', 'Mage Staff', 'Crystal Scepter', 'Ember Staff', 'Aether Stave'],
+  bow: ['Hunting Bow', 'Ash Longbow', 'Steel Recurve', 'Crystal Warbow', 'Ember Longbow', 'Aether Bow'],
+  crossbow: [
+    'Rusty Crossbow',
+    'Iron Crossbow',
+    'Steel Arbalest',
+    'Crystal Repeater',
+    'Ember Arbalest',
+    'Aether Ballista',
+  ],
   helm: ['Leather Cap', 'Iron Helm', 'Steel Visor', 'Crystal Circlet', 'Ember Crown', 'Aether Diadem'],
   armor: ['Padded Vest', 'Chainmail', 'Steel Plate', 'Crystal Mail', 'Ember Plate', 'Aether Raiment'],
   boots: ['Sandals', 'Iron Boots', 'Steel Greaves', 'Crystal Treads', 'Ember Striders', 'Aether Walkers'],
@@ -54,6 +65,8 @@ export const SLOT_ICON: Record<Slot | WeaponKind, IconId> = {
   greatsword: 'icon_greatsword',
   dagger: 'icon_dagger',
   staff: 'icon_staff',
+  bow: 'icon_bow',
+  crossbow: 'icon_crossbow',
   helm: 'icon_helm',
   armor: 'icon_armor',
   boots: 'icon_boots',
@@ -81,9 +94,18 @@ export const WEAPON_LABEL: Record<WeaponKind, string> = {
   greatsword: 'Greatsword',
   dagger: 'Dagger',
   staff: 'Staff',
+  bow: 'Bow',
+  crossbow: 'Crossbow',
 };
 
-export const WEAPON_KINDS: readonly WeaponKind[] = ['sword', 'greatsword', 'dagger', 'staff'];
+export const WEAPON_KINDS: readonly WeaponKind[] = [
+  'sword',
+  'greatsword',
+  'dagger',
+  'staff',
+  'bow',
+  'crossbow',
+];
 
 /** Per-weapon combat feel. Timings are in seconds (before attack speed). */
 export interface WeaponFeel {
@@ -96,6 +118,8 @@ export interface WeaponFeel {
   knockback: number;
   lunge: number;
   ranged: boolean;
+  /** The stat the weapon's hits scale with. */
+  stat: 'atk' | 'mag';
   desc: string;
 }
 
@@ -110,6 +134,7 @@ export const WEAPON_FEEL: Record<WeaponKind, WeaponFeel> = {
     knockback: 90,
     lunge: 40,
     ranged: false,
+    stat: 'atk',
     desc: 'Balanced reach and speed.',
   },
   greatsword: {
@@ -122,6 +147,7 @@ export const WEAPON_FEEL: Record<WeaponKind, WeaponFeel> = {
     knockback: 170,
     lunge: 30,
     ranged: false,
+    stat: 'atk',
     desc: 'Slow, wide, devastating swings.',
   },
   dagger: {
@@ -134,19 +160,47 @@ export const WEAPON_FEEL: Record<WeaponKind, WeaponFeel> = {
     knockback: 50,
     lunge: 55,
     ranged: false,
+    stat: 'atk',
     desc: 'Lightning-fast stabs. High crit.',
   },
   staff: {
-    range: 150,
+    range: 140,
     arc: 0,
-    windup: 0.08,
+    windup: 0.1,
     active: 0.05,
-    recover: 0.22,
-    dmg: 0.9,
+    recover: 0.25,
+    dmg: 0.8,
     knockback: 50,
     lunge: 0,
     ranged: true,
-    desc: 'Fires magic bolts scaling with Magic.',
+    stat: 'mag',
+    desc: 'Fires magic bolts scaling with Magic. Mages lean on their skills.',
+  },
+  bow: {
+    range: 160,
+    arc: 0,
+    windup: 0.06,
+    active: 0.04,
+    recover: 0.2,
+    dmg: 0.75,
+    knockback: 40,
+    lunge: 0,
+    ranged: true,
+    stat: 'atk',
+    desc: 'Quick arrows scaling with Attack. The finisher looses a volley.',
+  },
+  crossbow: {
+    range: 170,
+    arc: 0,
+    windup: 0.15,
+    active: 0.05,
+    recover: 0.35,
+    dmg: 1.35,
+    knockback: 90,
+    lunge: 0,
+    ranged: true,
+    stat: 'atk',
+    desc: 'Slow, heavy bolts that pierce, scaling with Attack.',
   },
 };
 
@@ -163,7 +217,11 @@ export function slotBaseStats(slot: Slot, kind: WeaponKind | undefined, ilvl: nu
         case 'dagger':
           return { atk: w * 0.75, crit: 0.06 };
         case 'staff':
-          return { atk: w * 0.45, mag: w * 1.35 };
+          return { atk: w * 0.3, mag: w * 1.2 };
+        case 'bow':
+          return { atk: w };
+        case 'crossbow':
+          return { atk: w * 1.1 };
       }
       break;
     case 'helm':
@@ -365,6 +423,15 @@ export const AFFIXES: readonly AffixDef[] = [
     prefix: 'Empowered',
     suffix: 'of Sorcery',
   },
+  {
+    stat: 'elemDmg',
+    slots: ['weapon', 'ring', 'amulet', 'gloves'],
+    weight: 5,
+    min: fixed(0.08),
+    max: fixed(0.25),
+    prefix: 'Prismatic',
+    suffix: 'of the Elements',
+  },
 ];
 
 export interface LegendaryDef {
@@ -372,6 +439,10 @@ export interface LegendaryDef {
   name: string;
   slot: Slot;
   kind?: WeaponKind;
+  armorType?: ArmorType;
+  /** Weapons: their element and how much damage they convert to it. */
+  element?: DamageElement;
+  elemConv?: number;
   power: string;
   bonus: Partial<Stats>;
 }
@@ -382,6 +453,8 @@ export const LEGENDARIES: readonly LegendaryDef[] = [
     name: "Thornmaw's Fang",
     slot: 'weapon',
     kind: 'dagger',
+    element: 'poison',
+    elemConv: 0.4,
     power: 'Hits poison enemies for 40% ATK over 3s.',
     bonus: { crit: 0.05 },
   },
@@ -389,6 +462,7 @@ export const LEGENDARIES: readonly LegendaryDef[] = [
     id: 'mountain_heart',
     name: 'Heart of the Mountain',
     slot: 'armor',
+    armorType: 'plate',
     power: '+25% Max HP. Reflects 25% of melee damage taken.',
     bonus: {},
   },
@@ -397,6 +471,8 @@ export const LEGENDARIES: readonly LegendaryDef[] = [
     name: 'Dragonbreath',
     slot: 'weapon',
     kind: 'sword',
+    element: 'fire',
+    elemConv: 0.4,
     power: 'Every 3rd combo hit unleashes a wave of fire.',
     bonus: { burnChance: 0.1 },
   },
@@ -411,6 +487,7 @@ export const LEGENDARIES: readonly LegendaryDef[] = [
     id: 'hollow_crown',
     name: 'The Hollow Crown',
     slot: 'helm',
+    armorType: 'mail',
     power: '+30% damage dealt, but -15% Max HP.',
     bonus: { dmgBonus: 0.3 },
   },
@@ -418,6 +495,7 @@ export const LEGENDARIES: readonly LegendaryDef[] = [
     id: 'windwalkers',
     name: 'Windwalker Treads',
     slot: 'boots',
+    armorType: 'leather',
     power: 'Dodge rolls cost 50% less and leave a slashing gust.',
     bonus: { moveSpeed: 0.06 },
   },
@@ -433,6 +511,8 @@ export const LEGENDARIES: readonly LegendaryDef[] = [
     name: 'Stormcaller',
     slot: 'weapon',
     kind: 'staff',
+    element: 'lightning',
+    elemConv: 0.5,
     power: 'Staff bolts chain lightning to 2 nearby enemies.',
     bonus: { mpRegen: 1 },
   },
@@ -451,7 +531,184 @@ export const LEGENDARIES: readonly LegendaryDef[] = [
     power: 'Each swing echoes with a second slash (60% dmg).',
     bonus: { atkSpeed: 0.08 },
   },
+  // ---- weapons ----
+  {
+    id: 'frostreaver',
+    name: 'Frostreaver',
+    slot: 'weapon',
+    kind: 'greatsword',
+    element: 'ice',
+    elemConv: 0.5,
+    power: 'Chilled and frozen enemies take 30% more damage from you.',
+    bonus: { critDmg: 0.2 },
+  },
+  {
+    id: 'venomfang',
+    name: 'Venomfang',
+    slot: 'weapon',
+    kind: 'dagger',
+    element: 'poison',
+    elemConv: 0.6,
+    power: 'Your poison stacks up to 6 times.',
+    bonus: { atkSpeed: 0.06 },
+  },
+  {
+    id: 'lightbringer',
+    name: 'Lightbringer',
+    slot: 'weapon',
+    kind: 'sword',
+    element: 'lightning',
+    elemConv: 0.4,
+    power: 'Every 3rd combo hit calls down a lightning bolt on your target for 200% ATK.',
+    bonus: { crit: 0.04 },
+  },
+  {
+    id: 'sunstrike',
+    name: 'Sunstrike Longbow',
+    slot: 'weapon',
+    kind: 'bow',
+    element: 'fire',
+    elemConv: 0.5,
+    power: 'Every 4th arrow is a blazing arrow that explodes for 150% ATK around its target.',
+    bonus: { burnChance: 0.08 },
+  },
+  {
+    id: 'galeforce',
+    name: 'Galeforce',
+    slot: 'weapon',
+    kind: 'bow',
+    power: 'Arrows pierce 2 extra enemies and knock them back.',
+    bonus: { moveSpeed: 0.05 },
+  },
+  {
+    id: 'siegebreaker',
+    name: 'Siegebreaker',
+    slot: 'weapon',
+    kind: 'crossbow',
+    power: 'Bolts explode on impact for 80% ATK around the target.',
+    bonus: { critDmg: 0.25 },
+  },
+  {
+    id: 'thunderlord',
+    name: "Thunderlord's Arbalest",
+    slot: 'weapon',
+    kind: 'crossbow',
+    element: 'lightning',
+    elemConv: 0.5,
+    power: 'Bolts chain lightning to 3 nearby enemies.',
+    bonus: { elemDmg: 0.15 },
+  },
+  {
+    id: 'pestilence',
+    name: 'Pestilence',
+    slot: 'weapon',
+    kind: 'staff',
+    element: 'poison',
+    elemConv: 0.6,
+    power: 'Poisoned enemies burst into a toxic cloud when they die, poisoning everything nearby.',
+    bonus: { mpRegen: 1 },
+  },
+  // ---- armor and jewelry ----
+  {
+    id: 'robe_archmage',
+    name: 'Robe of the Mad Archmage',
+    slot: 'armor',
+    armorType: 'cloth',
+    power: '+40% Magic, but you take 20% more damage.',
+    bonus: { skillDmg: 0.1 },
+  },
+  {
+    id: 'aegis_dawn',
+    name: 'Aegis of Dawn',
+    slot: 'armor',
+    armorType: 'plate',
+    power: '20% chance to block an enemy attack completely.',
+    bonus: { hpRegen: 3 },
+  },
+  {
+    id: 'starfall',
+    name: 'Starfall Diadem',
+    slot: 'helm',
+    armorType: 'cloth',
+    power: 'Meteor calls down 2 extra meteors around its target.',
+    bonus: { cdr: 0.06 },
+  },
+  {
+    id: 'mask_berserker',
+    name: 'Mask of the Berserker',
+    slot: 'helm',
+    armorType: 'leather',
+    power: 'Kills grant Frenzy: +5% attack speed and damage for 5s, stacking up to 6 times.',
+    bonus: { lifesteal: 0.02 },
+  },
+  {
+    id: 'pyres_grip',
+    name: "Pyrelord's Grip",
+    slot: 'gloves',
+    armorType: 'mail',
+    power: 'Fireball splits into three.',
+    bonus: { burnChance: 0.06 },
+  },
+  {
+    id: 'stormweave',
+    name: 'Stormweave Wraps',
+    slot: 'gloves',
+    armorType: 'cloth',
+    power: 'Chain Lightning jumps to 3 more enemies and deals 30% more damage.',
+    bonus: { mpRegen: 0.8 },
+  },
+  {
+    id: 'emberstride',
+    name: 'Emberstride',
+    slot: 'boots',
+    armorType: 'plate',
+    power: 'Dodge rolls leave a trail of fire that burns enemies (60% ATK per second).',
+    bonus: { def: 12 },
+  },
+  {
+    id: 'tempest_sash',
+    name: 'Tempest Sash',
+    slot: 'belt',
+    armorType: 'leather',
+    power: 'Whirlwind lasts twice as long and you spin faster.',
+    bonus: { atkSpeed: 0.05 },
+  },
+  {
+    id: 'bladedancer',
+    name: "Bladedancer's Girdle",
+    slot: 'belt',
+    armorType: 'mail',
+    power: 'Spectral Blades summons 3 more blades.',
+    bonus: { crit: 0.03 },
+  },
+  {
+    id: 'sprinters_oath',
+    name: "Sprinter's Oath",
+    slot: 'boots',
+    armorType: 'leather',
+    power: "Aether Slash's cooldown resets when it kills an enemy.",
+    bonus: { moveSpeed: 0.06 },
+  },
+  {
+    id: 'band_ascendant',
+    name: 'Band of the Ascendant',
+    slot: 'ring',
+    power: 'Aether Surge charges 50% faster.',
+    bonus: { critDmg: 0.15 },
+  },
+  {
+    id: 'serpent_eye',
+    name: 'Eye of the Serpent',
+    slot: 'amulet',
+    power: 'Burns and poisons you inflict last 50% longer.',
+    bonus: { elemDmg: 0.2 },
+  },
 ];
+
+export const LEGENDARY_BY_ID = Object.fromEntries(LEGENDARIES.map((l) => [l.id, l])) as Record<
+  LegendaryId,
+  LegendaryDef
+>;
 
 export const CONSUMABLES: Record<ConsumableId, ConsumableDef> = {
   elixir: {

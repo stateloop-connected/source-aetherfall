@@ -3,7 +3,7 @@
  * gem sockets. Materials come from monsters in each zone.
  */
 import type { IconId } from '../art/pixel/types';
-import type { CharmSize, ConsumableId, GearSlot, MaterialId } from '../game/types';
+import type { CharmSize, ConsumableId, DamageElement, GearSlot, MaterialId } from '../game/types';
 
 export type Station = 'alchemy' | 'forge';
 
@@ -15,7 +15,12 @@ export type RecipeResult =
   /** A charm that is never cursed. */
   | { kind: 'charm'; size: CharmSize }
   /** Adds one gem socket to a chosen item. */
-  | { kind: 'socket' };
+  | { kind: 'socket' }
+  /** Gives a chosen weapon an element (converting IMBUE_CONVERSION of its damage). */
+  | { kind: 'imbue'; element: DamageElement };
+
+/** How much of a weapon's damage an imbue converts (at least). */
+export const IMBUE_CONVERSION = 0.4;
 
 export interface Recipe {
   id: string;
@@ -167,6 +172,46 @@ export const RECIPES: readonly Recipe[] = [
     materials: { void: 5, crystal: 3 },
     gold: scaled(300, 40),
     result: { kind: 'socket' },
+  },
+  {
+    id: 'forge_imbue_fire',
+    name: 'Imbue: Fire',
+    station: 'forge',
+    icon: 'icon_elem_fire',
+    desc: 'Turn 40% of a weapon\u2019s damage into fire (burns). Not for legendary or set weapons.',
+    materials: { ember: 4, crystal: 2 },
+    gold: scaled(250, 30),
+    result: { kind: 'imbue', element: 'fire' },
+  },
+  {
+    id: 'forge_imbue_ice',
+    name: 'Imbue: Ice',
+    station: 'forge',
+    icon: 'icon_elem_ice',
+    desc: 'Turn 40% of a weapon\u2019s damage into ice (chills and freezes). Not for legendary or set weapons.',
+    materials: { frost: 4, crystal: 2 },
+    gold: scaled(250, 30),
+    result: { kind: 'imbue', element: 'ice' },
+  },
+  {
+    id: 'forge_imbue_lightning',
+    name: 'Imbue: Lightning',
+    station: 'forge',
+    icon: 'icon_elem_lightning',
+    desc: 'Turn 40% of a weapon\u2019s damage into lightning (arcs between enemies). Not for legendary or set weapons.',
+    materials: { crystal: 6, void: 1 },
+    gold: scaled(250, 30),
+    result: { kind: 'imbue', element: 'lightning' },
+  },
+  {
+    id: 'forge_imbue_poison',
+    name: 'Imbue: Poison',
+    station: 'forge',
+    icon: 'icon_elem_poison',
+    desc: 'Turn 40% of a weapon\u2019s damage into poison (stacking poison). Not for legendary or set weapons.',
+    materials: { herb: 6, pelt: 3 },
+    gold: scaled(250, 30),
+    result: { kind: 'imbue', element: 'poison' },
   },
   {
     id: 'forge_dust',

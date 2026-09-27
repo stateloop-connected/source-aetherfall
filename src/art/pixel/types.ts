@@ -93,7 +93,10 @@ export type ProjectileId =
   | 'proj_sand'
   | 'proj_bubble'
   | 'proj_lightning'
-  | 'proj_sunbolt';
+  | 'proj_sunbolt'
+  // hero ranged weapons (neutral; elemental trails are added in code)
+  | 'proj_hero_arrow'
+  | 'proj_quarrel';
 
 export type FxId = 'fx_hit' | 'fx_explosion' | 'fx_smoke' | 'fx_sparkle' | 'fx_poof';
 
@@ -133,7 +136,7 @@ export interface SpriteInfo {
 
 // --------------------------------------------------------------- weapons ----
 
-export type WeaponKind = 'sword' | 'greatsword' | 'dagger' | 'staff';
+export type WeaponKind = 'sword' | 'greatsword' | 'dagger' | 'staff' | 'bow' | 'crossbow';
 
 export interface WeaponInfo {
   w: number;
@@ -298,6 +301,16 @@ export type IconId =
   | 'icon_charm_small'
   | 'icon_charm_large'
   | 'icon_charm_grand'
+  | 'icon_bow'
+  | 'icon_crossbow'
+  // armor-type variants (the plain helm/armor/gloves/boots/belt icons are mail)
+  | `icon_${'helm' | 'armor' | 'gloves' | 'boots' | 'belt'}_${'cloth' | 'leather' | 'plate'}`
+  // damage elements (not tinted)
+  | 'icon_elem_physical'
+  | 'icon_elem_fire'
+  | 'icon_elem_ice'
+  | 'icon_elem_lightning'
+  | 'icon_elem_poison'
   // consumables & materials
   | 'icon_potion_hp'
   | 'icon_potion_mp'

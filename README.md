@@ -39,6 +39,14 @@ The art, music and sound effects are all generated in code; the repo contains no
 | ![Town portal back to where you left](docs/screenshots/town-portal.png) | ![Crafting at Brom's forge](docs/screenshots/crafting.png)          |
 | ![The stash in town](docs/screenshots/stash.png)                        | ![A world boss event](docs/screenshots/world-boss.png)              |
 
+**Weapons, elements and item sets**
+
+|                                                                    |                                                                               |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| ![A poison bow in the snow](docs/screenshots/ranged-bow.png)       | ![An item set's bonuses](docs/screenshots/tooltip-set.png)                    |
+| ![An ice crossbow](docs/screenshots/tooltip-element.png)           | ![Cloth mage gear](docs/screenshots/tooltip-cloth.png)                        |
+| ![Imbuing a weapon at the forge](docs/screenshots/forge-imbue.png) | ![Weapon element on the character sheet](docs/screenshots/stats-elements.png) |
+
 **Act II: The Dusk Shard**
 
 |                                                                                  |                                                                                |
@@ -57,20 +65,32 @@ The art, music and sound effects are all generated in code; the repo contains no
   ultimate-attack cut-ins, "VS" boss intros, speed lines, a typewriter text effect, and hold-to-skip.
   Dragon Ball–style moments include screaming power-ups with flaming auras, a mid-air rush exchange,
   a beam struggle in the finale, and manga "impact frames" with zoom punches.
-- **Aether Cannon.** The ultimate is a full-screen energy beam that follows its cut-in, and bosses that
-  reach a new phase freeze the fight to power up with an aura and a shockwave.
+- **Aether Cannon.** The ultimate charges over about a minute of fighting, then fires a full-screen energy beam
+  after its cut-in and leaves you in Overdrive (+30% damage and attack speed for 10s). Bosses that reach a new
+  phase freeze the fight to power up with an aura and a shockwave.
+- **Six weapon types.** Swords, greatswords, daggers, bows and crossbows scale with Attack; staves fire bolts that
+  scale with Magic. Ranged weapons trade some damage for safety.
+- **Elements.** Weapons can convert part of their damage into fire, ice, lightning or poison (or be imbued at the
+  forge). Armor only half-blocks elemental damage, each element has an effect (burn, chill and freeze, arcing
+  lightning, stacking poison), and monsters resist their own element and fear its opposite. Spells have elements too.
+- **Armor types.** Cloth, leather, mail and plate (Diablo style): cloth is mage gear with lots of Magic and little
+  armor or health, leather favours speed and crits, and plate is the toughest.
 - **Nine zones, nine bosses and two acts.** Each boss has multiple phases and telegraphed patterns. Zones are
-  generated procedurally but always the same (seeded), and every run checks that all key locations are reachable.
+  large and generated procedurally: each has four layouts, and a new one is picked when you walk in from town.
+  Every layout keeps the same points of interest (crystals, the guardian gate, quest markers, chests), and the
+  tests check that all of them are reachable.
 - **Act II: The Dusk Shard.** After Malachar falls, a letter calls Kai and Lyra across the sea to Solenne, a desert
   port city where the sun hasn't risen in thirty days. Four new chapters (levels 30–50) take you through the Sunscar
   Dunes, the Sunken Temple, the Stormspire and the Eclipse Sanctum to face the Order's Grandmaster, Aurelian. Solenne
   is a full second hub with its own shops, forge, inn, stash, bounty board, side quests and portal home.
-- **Grind as much as you like.** Enemies respawn when you rest. Loot comes in five rarities (six, counting the
-  Abyss-only Abyssal tier) with random affixes, and there are 10 legendaries with unique effects. Elite monsters
+- **Grind as much as you like.** Enemies respawn when you rest. Loot comes in five rarities (plus set items and the
+  Abyss-only Abyssal tier) with random affixes, and there are 30 legendaries with unique effects, many of which
+  change a skill. Eight Diablo 3–style item sets grant bonuses at 2, 3, 4 and 5 pieces. Elite monsters
   have modifiers such as Frenzied, Vampiric and Warded. There are repeatable bounties and a blacksmith who
   upgrades (+10), salvages and reforges gear.
 - **Character build.** 12 active skills, each with 5 ranks, plus an ultimate, and 36 talents in three trees
-  (two columns each, with a capstone at the bottom of every column). Talents can be reset at any time.
+  (two columns each, with a capstone at the bottom of every column). Talents can be reset at any time. Weapon hits
+  restore mana, and skills spend it for big bursts of damage.
 - **Challenge skills.** Four skills are only learned by beating hard challenges: Shadow Step (kill 30 enemies
   in a row without getting hit), Earthshatter (beat a guardian on Hard+ without a flask), Blizzard (beat a
   guardian without getting hit) and Blood Rite (clear 10 Abyss floors in a row without dying).
@@ -85,8 +105,8 @@ The art, music and sound effects are all generated in code; the repo contains no
   Blightroot, the Prismatic Colossus, Pyrrhus the Cinderwyrm, Old Grimfrost or the Hollow Warlord. It's announced
   wherever you are, marked on the HUD, minimap and map, scales to your level, keeps its wounds if you leave, stays
   about 8 minutes (never leaving mid-fight) and drops a hoard of epics, a likely legendary and crafting materials.
-- **Town portals.** Press T to open a portal home, sell and craft, then step back through: the area is exactly
-  as you left it, loot on the ground included.
+- **Town portals.** Press T (or click the portal on the action bar) to open a portal home, sell and craft, then
+  step back through: the area is exactly as you left it, loot on the ground included.
 - **Storage.** A tabbed stash chest in town, shared by all three save slots (buy more tabs), Bag Expansions and
   Charm Satchels from Mira, and manual sorting: drag and drop items (or use Move) to arrange your bag and pick
   which charms are active.
@@ -129,6 +149,7 @@ The art, music and sound effects are all generated in code; the repo contains no
 | Skills 1–4              | 1 2 3 4                         | LB RB LT RT    |
 | Aether Surge (ultimate) | F                               | Y              |
 | Health / mana flask     | Q / R                           | D-pad ↑ / ↓    |
+| Town portal             | T                               | L3             |
 | Menu / Map / Pause      | Tab or I / M / Esc              | Start / Select |
 
 All keyboard bindings can be changed in **Settings → Keyboard Controls**.

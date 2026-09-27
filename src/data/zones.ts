@@ -47,8 +47,8 @@ export const ZONES: Record<string, ZoneDef> = {
     music: 'forest',
     darkness: 0,
     ambient: 'leaves',
-    w: 72,
-    h: 90,
+    w: 92,
+    h: 128,
     seed: 'woods-v1',
     entry: 'south',
     back: { map: 'town', spawn: 'north' },
@@ -60,7 +60,7 @@ export const ZONES: Record<string, ZoneDef> = {
       ['mushroom', 3],
       ['goblin', 3],
     ],
-    packs: 13,
+    packs: 24,
     packSize: [2, 4],
     decor: [
       ['grass_tuft', 0.06],
@@ -89,8 +89,8 @@ export const ZONES: Record<string, ZoneDef> = {
     music: 'cave',
     darkness: 0.82,
     ambient: 'dust',
-    w: 90,
-    h: 70,
+    w: 128,
+    h: 90,
     seed: 'caverns-v1',
     entry: 'west',
     back: { map: 'town', spawn: 'east' },
@@ -102,7 +102,7 @@ export const ZONES: Record<string, ZoneDef> = {
       ['skeleton', 3],
       ['golem', 2],
     ],
-    packs: 15,
+    packs: 27,
     packSize: [2, 4],
     decor: [
       ['crystal_small', 0.02],
@@ -130,8 +130,8 @@ export const ZONES: Record<string, ZoneDef> = {
     music: 'volcano',
     darkness: 0.35,
     ambient: 'embers',
-    w: 80,
-    h: 88,
+    w: 100,
+    h: 124,
     seed: 'ember-v1',
     entry: 'north',
     back: { map: 'town', spawn: 'south' },
@@ -143,7 +143,7 @@ export const ZONES: Record<string, ZoneDef> = {
       ['salamander', 3],
       ['ember_wisp', 2],
     ],
-    packs: 15,
+    packs: 27,
     packSize: [2, 4],
     decor: [['bones', 0.004]],
     solids: [
@@ -169,8 +169,8 @@ export const ZONES: Record<string, ZoneDef> = {
     music: 'tundra',
     darkness: 0.1,
     ambient: 'snow',
-    w: 92,
-    h: 72,
+    w: 130,
+    h: 92,
     seed: 'frost-v1',
     entry: 'east',
     back: { map: 'town', spawn: 'west' },
@@ -182,7 +182,7 @@ export const ZONES: Record<string, ZoneDef> = {
       ['frost_wraith', 3],
       ['golem_ice', 2],
     ],
-    packs: 16,
+    packs: 29,
     packSize: [2, 4],
     decor: [],
     solids: [
@@ -207,8 +207,8 @@ export const ZONES: Record<string, ZoneDef> = {
     music: 'citadel',
     darkness: 0.5,
     ambient: 'void',
-    w: 80,
-    h: 96,
+    w: 100,
+    h: 132,
     seed: 'citadel-v1',
     entry: 'south',
     back: { map: 'town', spawn: 'portal' },
@@ -220,7 +220,7 @@ export const ZONES: Record<string, ZoneDef> = {
       ['hollow_wisp', 2],
       ['gargoyle', 2],
     ],
-    packs: 17,
+    packs: 31,
     packSize: [2, 4],
     decor: [['banner', 0.004]],
     solids: [
@@ -245,8 +245,8 @@ export const ZONES: Record<string, ZoneDef> = {
     music: 'desert',
     darkness: 0.2,
     ambient: 'sand',
-    w: 88,
-    h: 76,
+    w: 124,
+    h: 98,
     seed: 'dunes-v1',
     entry: 'east',
     back: { map: 'solenne', spawn: 'west' },
@@ -258,7 +258,7 @@ export const ZONES: Record<string, ZoneDef> = {
       ['sand_wraith', 2],
       ['cactoid', 2],
     ],
-    packs: 18,
+    packs: 32,
     packSize: [2, 4],
     decor: [
       ['desert_bones', 0.004],
@@ -286,8 +286,8 @@ export const ZONES: Record<string, ZoneDef> = {
     music: 'ruins',
     darkness: 0.4,
     ambient: 'fireflies',
-    w: 76,
-    h: 92,
+    w: 96,
+    h: 128,
     seed: 'sunken-v1',
     entry: 'north',
     back: { map: 'solenne', spawn: 'south' },
@@ -298,7 +298,7 @@ export const ZONES: Record<string, ZoneDef> = {
       ['reef_crab', 3],
       ['naga_adept', 3],
     ],
-    packs: 18,
+    packs: 32,
     packSize: [2, 4],
     decor: [
       ['seaweed', 0.012],
@@ -328,7 +328,7 @@ export const ZONES: Record<string, ZoneDef> = {
     music: 'storm',
     darkness: 0.35,
     ambient: 'rain',
-    w: 76,
+    w: 132,
     h: 96,
     seed: 'stormspire-v1',
     entry: 'west',
@@ -340,7 +340,7 @@ export const ZONES: Record<string, ZoneDef> = {
       ['storm_elemental', 3],
       ['stone_sentinel', 3],
     ],
-    packs: 18,
+    packs: 32,
     packSize: [2, 4],
     decor: [['wind_grass', 0.014]],
     solids: [
@@ -365,8 +365,8 @@ export const ZONES: Record<string, ZoneDef> = {
     music: 'eclipse',
     darkness: 0.5,
     ambient: 'void',
-    w: 80,
-    h: 96,
+    w: 100,
+    h: 132,
     seed: 'sanctum-v1',
     entry: 'south',
     back: { map: 'solenne', spawn: 'sanctum' },
@@ -378,7 +378,7 @@ export const ZONES: Record<string, ZoneDef> = {
       ['stone_sentinel', 1],
       ['sand_wraith', 1],
     ],
-    packs: 18,
+    packs: 32,
     packSize: [2, 4],
     decor: [['gold_rubble', 0.008]],
     solids: [
@@ -397,6 +397,9 @@ export const ZONES: Record<string, ZoneDef> = {
 };
 
 /** Zones of the first act (around Havenbrook) and the second (around Solenne). */
+/** Each zone has this many hand-checked random layouts; one is picked when you walk in from town. */
+export const ZONE_LAYOUTS = 4;
+
 export const ACT1_ZONES = ['forest', 'cave', 'volcano', 'tundra', 'citadel'] as const;
 export const ACT2_ZONES = ['desert', 'ruins', 'storm', 'sanctum'] as const;
 export const ZONE_ORDER = [...ACT1_ZONES, ...ACT2_ZONES] as const;

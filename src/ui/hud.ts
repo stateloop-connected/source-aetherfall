@@ -10,7 +10,7 @@ import { drawText, measureText } from '../engine/font';
 import { angleTo, clamp, TAU } from '../engine/math';
 import { STAMINA_MAX } from '../world/entities/player';
 import { CELL, TILE } from '../world/mapdata';
-import type { World } from '../world/world';
+import { TOWN_PORTAL_CAST, type World } from '../world/world';
 import { drawBar, drawIcon, drawKey, drawPanel, ellipsize, UI } from './widgets';
 
 const STATUS_COLORS: Record<string, [string, string]> = {
@@ -28,6 +28,22 @@ export class Hud {
   private minimapT = 0;
   zoneCard: { title: string; sub: string; t: number } | null = null;
   private t = 0;
+  /** Action bar buttons that can be clicked (last frame's layout). */
+  private buttons: { x: number; y: number; w: number; h: number; use: (world: World) => void }[] = [];
+
+  /**
+   * A click on an action bar button (flasks, skills, Surge, Town Portal) uses it instead of
+   * attacking. Call before the world updates.
+   */
+  handleClick(world: World): void {
+    const input = world.game.app.input;
+    const m = input.mouse;
+    if (!m.clicked) return;
+    const b = this.buttons.find((r) => m.x >= r.x && m.y >= r.y && m.x < r.x + r.w && m.y < r.y + r.h);
+    if (!b) return;
+    input.suppress('attack');
+    b.use(world);
+  }
 
   update(dt: number, world: World): void {
     this.t += dt;
@@ -157,7 +173,18 @@ export class Hud {
       drawIcon(ctx, 'icon_elixir', sx - 2, sy - 3);
       sx += 14;
     }
-    if (g.buffs.rite > 0) drawIcon(ctx, 'skill_bloodrite', sx - 2, sy - 3, 0, 0.9);
+    if (g.buffs.rite > 0) {
+      drawIcon(ctx, 'skill_bloodrite', sx - 2, sy - 3, 0, 0.9);
+      sx += 14;
+    }
+    if (g.buffs.overdrive > 0) {
+      drawIcon(ctx, 'skill_surge', sx - 2, sy - 3, 0, 0.6 + 0.4 * Math.abs(Math.sin(this.t * 6)));
+      sx += 14;
+    }
+    if (g.buffs.frenzy > 0) {
+      drawIcon(ctx, 'icon_potion_hp', sx - 2, sy - 3, 0, 0.9);
+      drawText(ctx, `${g.buffs.frenzyStacks}`, sx + 9, sy + 3, { color: UI.bad, outline: UI.bg });
+    }
   }
 
   private drawSkills(ctx: CanvasRenderingContext2D, world: World, W: number, H: number): void {
@@ -168,9 +195,15 @@ export class Hud {
     const gap = 3;
     const n = 4;
     const flaskW = 2 * (cell + gap) + 6;
-    const total = n * (cell + gap) - gap + flaskW;
+    // Surge and Town Portal sit to the right of the skills
+    const extraW = 6 + 2 * (cell + gap);
+    const total = n * (cell + gap) - gap + flaskW + extraW;
     let x = Math.round(W / 2 - total / 2);
     const y = H - cell - 8;
+    this.buttons = [];
+    const button = (use: (w: World) => void): void => {
+      this.buttons.push({ x, y, w: cell, h: cell, use });
+    };
     // flasks
     const st = g.stats();
     const drawFlask = (
@@ -191,6 +224,7 @@ export class Hud {
       });
       drawText(ctx, world.input.label(action), x + 1, y - 9, { color: UI.dim, outline: UI.bg });
       void max;
+      button((w) => w.input.setVirtualPress(action));
       x += cell + gap;
     };
     drawFlask('icon_potion_hp', hero.flaskHp, st.flaskHpMax, 'potionHp');
@@ -207,7 +241,7 @@ export class Hud {
       if (id) {
         const def = SKILLS[id];
         const cd = p.cooldownFrac(id, world);
-        const noMp = p.mp < def.mp;
+        const noMp = p.mp < p.skillCost(id, world);
         drawIcon(ctx, def.icon, x + 2, y + 2, 0, noMp ? 0.4 : 1);
         if (cd > 0) {
           ctx.fillStyle = 'rgba(24,20,37,0.75)';
@@ -224,8 +258,50 @@ export class Hud {
         color: UI.dim,
         outline: UI.bg,
       });
+      const slot = `skill${i + 1}` as 'skill1';
+      button((w) => w.input.setVirtualPress(slot));
       x += cell + gap;
     }
+    x += 6;
+    // Aether Surge: fills up as you fight
+    if (hero.surgeUnlocked) {
+      const full = hero.surge >= 100;
+      ctx.fillStyle = UI.bg;
+      ctx.globalAlpha = 0.8;
+      ctx.fillRect(x, y, cell, cell);
+      ctx.globalAlpha = 1;
+      const h = Math.round((cell - 2) * (hero.surge / 100));
+      ctx.fillStyle = full ? (Math.floor(this.t * 8) % 2 ? '#ffffff' : UI.cyan) : 'rgba(44,232,245,0.35)';
+      ctx.fillRect(x + 1, y + 1 + (cell - 2 - h), cell - 2, h);
+      drawIcon(ctx, 'skill_surge', x + 2, y + 2, 0, full ? 1 : 0.55);
+      ctx.strokeStyle = full ? UI.cyan : UI.border;
+      ctx.strokeRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
+      if (!full)
+        drawText(ctx, `${Math.floor(hero.surge)}`, x + cell / 2, y + 6, {
+          align: 'center',
+          color: '#ffffff',
+          outline: UI.bg,
+        });
+      drawText(ctx, world.input.label('ultimate'), x + 1, y - 9, { color: UI.cyan, outline: UI.bg });
+      button((w) => w.tryUltimate());
+      x += cell + gap;
+    }
+    // Town Portal
+    const blocked = world.townPortalBlocked();
+    ctx.fillStyle = UI.bg;
+    ctx.globalAlpha = 0.8;
+    ctx.fillRect(x, y, cell, cell);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = UI.border;
+    ctx.strokeRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
+    drawIcon(ctx, 'ui_portal', x + 2, y + 2, 0, blocked ? 0.35 : 1);
+    if (world.portalCast) {
+      const k = Math.min(1, world.portalCast.t / TOWN_PORTAL_CAST);
+      ctx.fillStyle = 'rgba(44,232,245,0.45)';
+      ctx.fillRect(x + 1, y + cell - 1 - Math.round((cell - 2) * k), cell - 2, Math.round((cell - 2) * k));
+    }
+    drawText(ctx, world.input.label('townPortal'), x + 1, y - 9, { color: UI.dim, outline: UI.bg });
+    button((w) => w.startTownPortal());
   }
 
   private drawMinimap(ctx: CanvasRenderingContext2D, world: World, W: number): void {

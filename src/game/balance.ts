@@ -44,77 +44,83 @@ export interface DifficultyMods {
   /** Elite health and damage multipliers. */
   eliteHp: number;
   eliteDmg: number;
-  /** XP and gold multipliers (harder difficulties pay more). */
+  /** XP and gold multipliers. XP is scarce everywhere; harder difficulties pay a little more per kill. */
   xpMult: number;
   goldMult: number;
+  /** Monster packs are this much bigger. */
+  spawnMult: number;
   label: string;
   desc: string;
 }
 
 export const DIFFICULTY: Record<Difficulty, DifficultyMods> = {
   story: {
-    enemyHp: 0.7,
-    enemyDmg: 0.5,
+    enemyHp: 0.9,
+    enemyDmg: 0.6,
     enemySpeed: 0.9,
-    eliteChance: 0.03,
+    eliteChance: 0.04,
     lootBonus: 0,
     goldLossOnDeath: 0,
-    aggression: 1.15,
+    aggression: 1.1,
     tokens: 1,
     eliteHp: 2.2,
     eliteDmg: 1.15,
-    xpMult: 1,
+    xpMult: 0.55,
     goldMult: 1,
+    spawnMult: 0.85,
     label: 'Story',
-    desc: 'Enjoy the tale. Enemies hit softly and you keep all gold on death.',
+    desc: 'Enjoy the tale. Fewer, softer enemies and you keep all gold on death.',
   },
   normal: {
-    enemyHp: 1.2,
-    enemyDmg: 1.35,
+    enemyHp: 1.7,
+    enemyDmg: 1.55,
     enemySpeed: 1,
-    eliteChance: 0.08,
+    eliteChance: 0.1,
     lootBonus: 0,
     goldLossOnDeath: 0.2,
-    aggression: 0.95,
+    aggression: 0.9,
     tokens: 2,
-    eliteHp: 2.8,
-    eliteDmg: 1.35,
-    xpMult: 1,
+    eliteHp: 2.9,
+    eliteDmg: 1.4,
+    xpMult: 0.5,
     goldMult: 1,
+    spawnMult: 1.15,
     label: 'Normal',
-    desc: 'The intended challenge. Enemies hit hard: learn their patterns, dodge, and grind if stuck.',
+    desc: 'The intended challenge. Enemies hit hard and come in packs: learn their patterns, dodge, and grind if stuck.',
   },
   hard: {
-    enemyHp: 1.85,
-    enemyDmg: 2.1,
+    enemyHp: 2.7,
+    enemyDmg: 2.4,
     enemySpeed: 1.1,
-    eliteChance: 0.14,
+    eliteChance: 0.17,
     lootBonus: 0.3,
     goldLossOnDeath: 0.3,
-    aggression: 0.85,
+    aggression: 0.8,
     tokens: 4,
-    eliteHp: 3.2,
-    eliteDmg: 1.5,
-    xpMult: 1.2,
+    eliteHp: 3.3,
+    eliteDmg: 1.55,
+    xpMult: 0.45,
     goldMult: 1.2,
+    spawnMult: 1.45,
     label: 'Hard',
-    desc: 'Tough, fast, aggressive enemies and many elites. +30% rare loot, +20% XP and gold.',
+    desc: 'Bigger packs of tough, fast, aggressive enemies and many elites. +30% rare loot, +20% gold, slower levelling.',
   },
   nightmare: {
-    enemyHp: 2.7,
-    enemyDmg: 3.1,
+    enemyHp: 3.9,
+    enemyDmg: 3.6,
     enemySpeed: 1.18,
-    eliteChance: 0.22,
+    eliteChance: 0.26,
     lootBonus: 0.7,
     goldLossOnDeath: 0.5,
-    aggression: 0.75,
+    aggression: 0.72,
     tokens: 6,
-    eliteHp: 3.6,
-    eliteDmg: 1.6,
-    xpMult: 1.4,
+    eliteHp: 3.7,
+    eliteDmg: 1.65,
+    xpMult: 0.42,
     goldMult: 1.4,
+    spawnMult: 1.8,
     label: 'Nightmare',
-    desc: 'Punishing. Everything hits like a truck and swarms you. +70% rare loot, +40% XP and gold.',
+    desc: 'Punishing. Swarms of enemies that hit like a truck. +70% rare loot, +40% gold, the slowest levelling.',
   },
 };
 
@@ -135,10 +141,11 @@ export function effectiveDifficulty(d: Difficulty, torment = 0): DifficultyMods 
     eliteChance: base.eliteChance + 0.02 * t,
     lootBonus: base.lootBonus + 0.25 * t,
     aggression: base.aggression * 0.97 ** t,
-    xpMult: base.xpMult * (1 + 0.35 * t),
+    xpMult: base.xpMult * (1 + 0.12 * t),
     goldMult: base.goldMult * (1 + 0.3 * t),
+    spawnMult: base.spawnMult + 0.1 * t,
     label: `Torment ${ROMAN[t]}`,
-    desc: `Nightmare, but ${Math.round((1.45 ** t - 1) * 100)}% more enemy health and ${Math.round((1.3 ** t - 1) * 100)}% more damage. Much better loot, XP and gold.`,
+    desc: `Nightmare, but ${Math.round((1.45 ** t - 1) * 100)}% more enemy health, ${Math.round((1.3 ** t - 1) * 100)}% more damage and bigger packs. Much better loot and gold.`,
   };
 }
 
@@ -185,22 +192,62 @@ export interface DamageInput {
   /** Random roll in [0,1) for crit, and in [0,1) for variance. */
   rollCrit: number;
   rollVar: number;
+  /** Fraction of the hit that is elemental (0 = all physical). */
+  elemFrac?: number;
+  /** Multiplier on the elemental part (resistance/weakness and Elemental Damage). */
+  elemMult?: number;
+  /** Fraction of the defender's armor the elemental part ignores. */
+  elemPierce?: number;
 }
 
 export interface DamageResult {
   amount: number;
   crit: boolean;
+  /** Share of `amount` that is elemental (0-1). */
+  elemShare: number;
 }
 
 export function computeDamage(i: DamageInput): DamageResult {
   const variance = 0.9 + i.rollVar * 0.2;
   let dmg = i.power * i.mult * variance * (1 + (i.bonus ?? 0));
-  dmg *= 1 - defenseReduction(i.defenderDef, i.attackerLevel);
+  // armor blunts physical damage fully and elemental damage only partly
+  const dr = defenseReduction(i.defenderDef, i.attackerLevel);
+  const f = Math.max(0, Math.min(1, i.elemFrac ?? 0));
+  const phys = (1 - f) * (1 - dr);
+  const elem = f * (1 - dr * (1 - (i.elemPierce ?? 0))) * (i.elemMult ?? 1);
+  dmg *= phys + elem;
   dmg *= levelDiffMod(i.attackerLevel, i.defenderLevel);
   const crit = i.rollCrit < i.critChance;
   if (crit) dmg *= 1 + i.critDmg;
-  return { amount: Math.max(1, Math.round(dmg)), crit };
+  return {
+    amount: Math.max(1, Math.round(dmg)),
+    crit,
+    elemShare: phys + elem > 0 ? elem / (phys + elem) : 0,
+  };
 }
+
+/** Weapon hits restore this fraction of max MP (Aether) per enemy hit, so skills can follow. */
+export const MP_ON_HIT = { melee: 0.012, ranged: 0.008 };
+
+/**
+ * Aether Surge charge per hit (and multiplier for skill hits), when hurt, per perfect
+ * dodge and per kill. It takes about a minute of fighting to fill.
+ */
+export const SURGE_GAIN = {
+  hit: 0.45,
+  crit: 0.8,
+  skillMult: 0.6,
+  hurt: 1.5,
+  perfect: 6,
+  kill: 0.8,
+  eliteKill: 4,
+};
+
+/**
+ * The Aether Cannon (the Surge): beam damage to each enemy it touches is
+ * (beam + perShard × shards) × your best damage stat, plus a nova around you.
+ */
+export const SURGE = { beam: 18, perShard: 4, nova: 4, duration: 1.5, width: 34 };
 
 /** Gold dropped by an enemy. */
 export const goldDrop = (baseGold: number, level: number, roll: number): number =>
@@ -225,11 +272,11 @@ export const upgradeMult = (upgrade: number): number => 1 + 0.1 * upgrade;
 
 /** Aether dust yielded by salvaging an item. */
 export const salvageYield = (ilvl: number, rarityIndex: number): number =>
-  Math.round([1, 3, 8, 20, 50, 120][rarityIndex] * (1 + ilvl / 12));
+  Math.round([1, 3, 8, 20, 50, 60, 120][rarityIndex] * (1 + ilvl / 12));
 
 /** Gold for selling an item. */
 export const sellPrice = (ilvl: number, rarityIndex: number, upgrade: number): number =>
-  Math.round((5 + ilvl * 3) * [1, 2, 4, 8, 16, 40][rarityIndex] * (1 + upgrade * 0.2));
+  Math.round((5 + ilvl * 3) * [1, 2, 4, 8, 16, 20, 40][rarityIndex] * (1 + upgrade * 0.2));
 
 /** Shop price for buying an item. */
 export const buyPrice = (ilvl: number, rarityIndex: number): number => sellPrice(ilvl, rarityIndex, 0) * 4;

@@ -4,6 +4,7 @@ import { QUESTS } from '../../data/quests';
 import { SKILLS } from '../../data/skills';
 import { drawText } from '../../engine/font';
 import type { Rect } from '../../engine/math';
+import { QUEST_XP_MULT } from '../../game/quests';
 import type { QuestState } from '../../game/state';
 import { drawTooltip, ellipsize, ListView, UI } from '../../ui/widgets';
 import type { MenuScene, TabView } from './menu';
@@ -64,7 +65,7 @@ export class QuestsTab implements TabView {
     });
     const rw = def.reward;
     const rewards: string[] = [];
-    if (rw.xp) rewards.push(`${rw.xp} XP`);
+    if (rw.xp) rewards.push(`${Math.round(rw.xp * QUEST_XP_MULT)} XP`);
     if (rw.gold) rewards.push(`${rw.gold}g`);
     if (rw.skillPoints) rewards.push(`${rw.skillPoints} SP`);
     if (rw.item) rewards.push(`{${rw.item.rarity}}${rw.item.rarity} item{/}`);

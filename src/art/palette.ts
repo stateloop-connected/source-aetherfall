@@ -47,5 +47,16 @@ export const RARITY_COLORS = {
   rare: PAL.sky,
   epic: PAL.magenta,
   legendary: PAL.orange,
+  /** Set items: a bright emerald, brighter than magic (uncommon) green. */
+  set: '#3ff0a0',
   abyssal: PAL.hotPink,
+} as const;
+
+/** Damage element colors (damage numbers, tooltips, trails). */
+export const ELEMENT_COLORS = {
+  physical: PAL.lightGray,
+  fire: PAL.orange,
+  ice: PAL.cyan,
+  lightning: PAL.yellow,
+  poison: '#8fdc3c',
 } as const;

@@ -4,10 +4,21 @@
  */
 import { drawCutIn, cutInDuration, drawSpeedLines, type CutInId } from '../art/anime';
 import { getSprite, silhouette, spriteInfo } from '../art/pixel';
-import type { FxId } from '../art/pixel/types';
+import type { FxId, WeaponKind } from '../art/pixel/types';
 import { audio } from '../audio';
 import { ELITE_MODS, enemyDef, type AttackDef, type ProjectileSpec, type StatusSpec } from '../data/enemies';
+import {
+  ARC_CHANCE,
+  BURN_CHANCE,
+  ELEMENT_ARMOR_PIERCE,
+  FREEZE_CHANCE,
+  POISON_STACKS,
+  resistMult,
+} from '../data/elements';
+import { WEAPON_FEEL } from '../data/items';
+import { ELEMENT_COLORS } from '../art/palette';
 import type { SkillId } from '../data/skills';
+import { FRENZY } from '../game/stats';
 import { NPCS, type Service } from '../data/npcs';
 import { drawText } from '../engine/font';
 import type { Input } from '../engine/input';
@@ -20,6 +31,9 @@ import {
   computeDamage,
   GEM_DROPS,
   goldDrop,
+  MP_ON_HIT,
+  SURGE,
+  SURGE_GAIN,
   xpReward,
   type AbyssLootSource,
 } from '../game/balance';
@@ -36,7 +50,7 @@ import {
   hasFlag,
   setFlag,
 } from '../game/state';
-import type { Item, MaterialId, Rarity } from '../game/types';
+import type { DamageElement, Element, Item, MaterialId, Rarity } from '../game/types';
 import { Camera } from './camera';
 import type { Entity } from './entities/actor';
 import { Enemy } from './entities/enemy';
@@ -47,14 +61,14 @@ import { Pickup } from './entities/pickup';
 import { Player } from './entities/player';
 import { Projectile } from './entities/projectile';
 import { abyssLevel } from './abyss';
-import { getMap } from './maps';
+import { getMap, useZoneLayouts, zoneLayout } from './maps';
 import { CELL, TILE, TOWN_PORTAL_ID, type MapData, type MapObject } from './mapdata';
 import { Particles } from './particles';
 import { BG_COLOR, MapRenderer, type Drawable, type Light } from './render';
-import { fireCannon } from './skills';
-import { hubFor, isTown, ZONES } from '../data/zones';
+import { fireCannon, surgePower } from './skills';
+import { hubFor, isTown, ZONE_LAYOUTS, ZONES } from '../data/zones';
 import { TrialRun } from './trial';
-import { WorldBossDirector } from './worldboss';
+import { WorldBossDirector, worldBossSpot } from './worldboss';
 import { ASC_POINTS_PER_TRIAL } from '../data/ascendancy';
 import { applyImpactFrame, impactStyleAt, zoomPunch } from '../ui/fx';
 import { TileMap } from './tilemap';
@@ -121,6 +135,12 @@ export interface PlayerHitOpts {
   forceCrit?: boolean;
   noShake?: boolean;
   noSurge?: boolean;
+  /** Damage element; unset follows the weapon's conversion. Skills with an element are fully elemental. */
+  element?: Element;
+  /** A weapon hit (basic attack): restores MP. */
+  basic?: boolean;
+  /** Damage from an effect (explosions, lightning): doesn't trigger element or set effects again. */
+  secondary?: boolean;
 }
 
 const SHARD_BOSSES = ['thornmaw', 'crystal_golem', 'ignis', 'seraphine', 'malachar_true'];
@@ -205,6 +225,10 @@ export class World {
 
   // ----------------------------------------------------------------- load ----
   load(mapId: string, spawn: string | { x: number; y: number }): void {
+    useZoneLayouts(this.game.save.layouts);
+    // walking into a zone from its town: a fresh layout
+    const from = this.data?.id;
+    if (from && ZONES[mapId] && spawn === 'entry' && hubFor(mapId) === from) this.newLayout(mapId);
     this.data = getMap(mapId);
     this.map = new TileMap(this.data);
     this.renderer = new MapRenderer(this.data);
@@ -246,6 +270,9 @@ export class World {
     // spawn position
     let sp = typeof spawn === 'string' ? this.data.spawnPoints[spawn] : spawn;
     if (!sp) sp = this.data.spawnPoints['entry'] ?? Object.values(this.data.spawnPoints)[0];
+    // a remembered position that no longer fits the map (older saves, a new layout)
+    if (!this.map.walkableAt(sp.x, sp.y))
+      sp = this.nearestOpen(sp.x, sp.y) ?? this.data.spawnPoints['entry'] ?? sp;
     this.player.x = sp.x;
     this.player.y = sp.y;
     this.player.state = 'free';
@@ -306,7 +333,9 @@ export class World {
     this.explored = decodeBits(save.explored[mapId], this.data.w * this.data.h);
     // dropped gold from a previous death
     if (save.droppedGold && save.droppedGold.map === mapId) {
-      const pk = new Pickup(save.droppedGold.x, save.droppedGold.y, 'soul', save.droppedGold.amount);
+      const dg = save.droppedGold;
+      if (!this.map.walkableAt(dg.x, dg.y)) Object.assign(dg, this.nearestOpen(dg.x, dg.y) ?? sp);
+      const pk = new Pickup(dg.x, dg.y, 'soul', dg.amount);
       pk.vx = pk.vy = pk.vz = 0;
       pk.z = 0;
       this.pickups.push(pk);
@@ -333,6 +362,7 @@ export class World {
     this.enemies = this.enemies.filter((e) => e.isBoss);
     const diff = this.game.difficulty;
     const ng = this.game.save.ngPlus * 30;
+    const extra = Math.max(0, diff.spawnMult - 1);
     for (const s of this.data.spawns) {
       const def = enemyDef(s.enemy);
       const elite = s.elite || rng.chance(diff.eliteChance) ? rng.pick(ELITE_MODS) : null;
@@ -342,6 +372,20 @@ export class World {
           group: s.group,
         }),
       );
+      // harder difficulties bring bigger packs: extra monsters beside this one
+      // (Story has fewer: some spawns are skipped)
+      if (diff.spawnMult < 1 && !s.elite && rng.chance(1 - diff.spawnMult)) this.enemies.pop();
+      const more = Math.floor(extra) + (rng.chance(extra % 1) ? 1 : 0);
+      for (let i = 0; i < more; i++) {
+        const spot = this.openSpotNear(s.x, s.y, 28);
+        if (!spot) break;
+        this.enemies.push(
+          new Enemy(def, s.level + ng, spot.x, spot.y, diff, {
+            elite: rng.chance(diff.eliteChance) ? rng.pick(ELITE_MODS) : null,
+            group: s.group,
+          }),
+        );
+      }
     }
     const b = this.data.boss;
     // defeated story bosses only return when the player asks for a rematch at the gate
@@ -363,7 +407,70 @@ export class World {
     return e;
   }
 
+  /**
+   * Switch a zone to a different layout. Positions remembered in it (the respawn crystal,
+   * dropped gold, a world boss) move to their place in the new layout. A zone with an open
+   * town portal keeps its layout so the portal still leads back to the same spot.
+   */
+  private newLayout(zone: string): void {
+    const save = this.game.save;
+    if (save.townPortal?.map === zone) return;
+    const old = zoneLayout(zone);
+    const next = (old + 1 + rng.int(0, ZONE_LAYOUTS - 2)) % ZONE_LAYOUTS;
+    const before = getMap(zone, old);
+    save.layouts[zone] = next;
+    delete save.explored[zone];
+    const after = getMap(zone, next);
+    // the same crystal in the new layout
+    const crystalSpot = (x: number, y: number): { x: number; y: number } | null => {
+      let best: MapObject | null = null;
+      let bd = 60;
+      for (const o of before.objects) {
+        if (o.kind !== 'crystal') continue;
+        const d = dist(o.x, o.y + 14, x, y);
+        if (d < bd) {
+          bd = d;
+          best = o;
+        }
+      }
+      const o = best && after.objects.find((a) => a.id === best.id);
+      return o ? { x: o.x, y: o.y + 14 } : null;
+    };
+    if (save.respawn.map === zone)
+      Object.assign(save.respawn, crystalSpot(save.respawn.x, save.respawn.y) ?? after.spawnPoints.entry);
+    if (save.droppedGold?.map === zone)
+      Object.assign(save.droppedGold, after.spawnPoints[`${zone}_crystal_a`] ?? after.spawnPoints.entry);
+    if (save.worldBoss?.zone === zone) Object.assign(save.worldBoss, worldBossSpot(after, rng));
+  }
+
+  /** The nearest walkable tile centre to a point (within 8 tiles), or null. */
+  nearestOpen(x: number, y: number): { x: number; y: number } | null {
+    const tx = Math.floor(x / TILE);
+    const ty = Math.floor(y / TILE);
+    for (let r = 0; r <= 8; r++)
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const px = (tx + dx) * TILE + TILE / 2;
+          const py = (ty + dy) * TILE + TILE / 2;
+          if (this.map.walkableAt(px, py) && this.map.walkableAt(px, py - 6)) return { x: px, y: py };
+        }
+    return null;
+  }
+
   // ------------------------------------------------------------- helpers ----
+  /** A random walkable spot within `radius` of a point (or null). */
+  openSpotNear(x: number, y: number, radius: number): { x: number; y: number } | null {
+    for (let k = 0; k < 8; k++) {
+      const a = rng.range(0, TAU);
+      const d = rng.range(8, radius);
+      const px = x + Math.cos(a) * d;
+      const py = y + Math.sin(a) * d;
+      if (this.map.walkableAt(px, py) && this.map.walkableAt(px, py - 6)) return { x: px, y: py };
+    }
+    return null;
+  }
+
   get isArena(): boolean {
     return !!this.data.arena || this.abyssFloor > 0;
   }
@@ -1039,11 +1146,22 @@ export class World {
     if (asc.has('sb_assassin') && hpFrac < 0.35) bonus += 0.5;
     if (asc.has('am_mastery') && (hasStatus(e, 'burn') || hasStatus(e, 'freeze'))) bonus += 0.25;
     if (pv.unyielding && p.hp < p.maxHp * 0.4) bonus += 0.2;
+    // legendary and set powers that favour afflicted enemies
+    const chilled = hasStatus(e, 'slow') || hasStatus(e, 'freeze');
+    if (chilled && st.legendaries.has('frostreaver')) bonus += 0.3;
+    if (chilled && st.setPowers.has('frost_shatter')) bonus += 0.4;
+    if (hasStatus(e, 'burn') && st.setPowers.has('ember_heart')) bonus += 0.3;
     let forceCrit = !!o.forceCrit;
     // Riposte: guaranteed crits after a perfect dodge
     if (!o.isSkill && p.guaranteedCrits > 0) {
       forceCrit = true;
       p.guaranteedCrits--;
+    }
+    // Whisperwind: the hits after a dodge roll
+    if (!o.isSkill && !o.secondary && p.ambushHits > 0) {
+      forceCrit = true;
+      bonus += 0.6;
+      p.ambushHits--;
     }
     // Shadow Veil: the first hit after a roll
     if (p.veilT > 0 && asc.has('sb_veil')) {
@@ -1051,6 +1169,9 @@ export class World {
       bonus += 0.5;
       p.veilT = 0;
     }
+    // elements: skills with an element are fully elemental; everything else follows the weapon
+    const el: Element = o.element ?? st.element;
+    const frac = el === 'physical' ? 0 : o.element ? 1 : st.elemConv;
     const critChance = forceCrit ? 1 : st.crit + (o.isSkill ? (pv.overload ? 0.15 : 0) + pv.skillCrit : 0);
     const res = computeDamage({
       power,
@@ -1063,6 +1184,9 @@ export class World {
       bonus,
       rollCrit: rng.next(),
       rollVar: rng.next(),
+      elemFrac: frac,
+      elemMult: el === 'physical' ? 1 : resistMult(e.def.element, el) * (1 + st.elemDmg),
+      elemPierce: ELEMENT_ARMOR_PIERCE,
     });
     let dmg = res.amount;
     const dir = o.dir ?? angleTo(this.player.x, this.player.y, e.x, e.y);
@@ -1089,7 +1213,13 @@ export class World {
         return;
       }
     }
-    this.dealToEnemy(e, dmg, res.crit, dir, o.knock ?? 60, o.heavy || res.crit);
+    const color = el !== 'physical' && res.elemShare >= 0.5 ? ELEMENT_COLORS[el] : undefined;
+    this.dealToEnemy(e, dmg, res.crit, dir, o.knock ?? 60, o.heavy || res.crit, color);
+    if (o.basic) {
+      // weapon hits charge up Aether (MP) for skills
+      const ranged = WEAPON_FEEL[p.weaponKind].ranged;
+      p.mp = Math.min(p.maxMp, p.mp + p.maxMp * (ranged ? MP_ON_HIT.ranged : MP_ON_HIT.melee));
+    }
     if (!o.isSkill) {
       // Thousand Cuts: basic hits shorten every skill cooldown
       if (asc.has('bm_thousand'))
@@ -1097,6 +1227,8 @@ export class World {
           p.cooldowns[k] = Math.max(0, (p.cooldowns[k] ?? 0) - 0.25);
       if (asc.has('am_archon')) p.mp = Math.min(p.maxMp, p.mp + 1);
     }
+    if (!o.noSurge && hero.surgeUnlocked)
+      this.chargeSurge(res.crit ? SURGE_GAIN.crit : SURGE_GAIN.hit, o.isSkill);
     if (e.dead) {
       if (o.isSkill && pv.skillExplode) this.skillExplosion(e);
       return;
@@ -1108,12 +1240,152 @@ export class World {
       e.applyStatus(this.tuneStatus({ kind: 'burn', duration: 3 }), power * 0.3, immune);
     if (!o.isSkill && (st.legendaries.has('thornfang') || asc.has('sb_venom')))
       e.applyStatus({ kind: 'poison', duration: 3 }, (power * 0.4 * 0.33) / 0.2, immune);
+    if (el !== 'physical' && frac > 0 && !o.secondary) this.elementEffects(e, el, dmg * res.elemShare, dmg);
+    if (!o.secondary && st.setPowers.has('storm_strike') && rng.chance(0.2)) this.stormStrike(e, power);
     if (st.lifesteal > 0) this.healPlayer(dmg * st.lifesteal, false);
-    if (!o.noSurge && hero.surgeUnlocked)
-      hero.surge = Math.min(100, hero.surge + (res.crit ? 2.2 : 1.2) * (o.isSkill ? 0.7 : 1));
     if (o.isSkill && res.crit && st.passives.overload)
       this.player.mp = Math.min(this.player.maxMp, this.player.mp + 4);
     if (!o.noShake) this.shake(res.crit || o.heavy ? 2.5 : 1.2, 0.12);
+  }
+
+  /** Add Aether Surge charge (Band of the Ascendant charges it faster; skills charge less). */
+  chargeSurge(amount: number, fromSkill = false): void {
+    const hero = this.game.save.hero;
+    if (!hero.surgeUnlocked || this.cannon) return;
+    const st = this.game.stats();
+    const k = (fromSkill ? SURGE_GAIN.skillMult : 1) * (st.legendaries.has('band_ascendant') ? 1.5 : 1);
+    hero.surge = Math.min(100, hero.surge + amount * k);
+  }
+
+  /** What an element does on hit: burn, chill/freeze, arc or poison. */
+  private elementEffects(e: Enemy, el: DamageElement, elemDmg: number, dmg: number): void {
+    const immune = e.def.immune ?? [];
+    const st = this.game.stats();
+    const dotLen = st.legendaries.has('serpent_eye') ? 1.5 : 1;
+    switch (el) {
+      case 'fire':
+        if (rng.chance(BURN_CHANCE))
+          e.applyStatus({ kind: 'burn', duration: 3 * dotLen, power: 1 }, elemDmg * 0.4, immune);
+        break;
+      case 'ice':
+        e.applyStatus(this.tuneStatus({ kind: 'slow', duration: 2, power: 0.3 }), 0, immune);
+        if (rng.chance(FREEZE_CHANCE))
+          e.applyStatus(this.tuneStatus({ kind: 'freeze', duration: 1 }), 0, immune);
+        break;
+      case 'lightning':
+        if (rng.chance(ARC_CHANCE)) this.arcLightning(e, dmg * 0.5, 2);
+        break;
+      case 'poison':
+        this.applyPoison(e, (elemDmg * 0.6) / 3, 3 * dotLen);
+        break;
+    }
+  }
+
+  /** Poison that stacks: each application adds to the damage, up to a cap. */
+  applyPoison(e: Enemy, perSec: number, duration: number): void {
+    if (e.dead || (e.def.immune ?? []).includes('poison') || perSec <= 0) return;
+    const st = this.game.stats();
+    const plague = st.setPowers.has('venom_plague');
+    const stacks = st.legendaries.has('venomfang') ? 6 : plague ? 5 : POISON_STACKS;
+    const add = perSec * (plague ? 2 : 1);
+    const cur = e.statuses.poison;
+    if (!cur || cur.t <= 0) e.statuses.poison = { t: duration, power: add };
+    else {
+      cur.power = Math.min(cur.power + add, add * stacks);
+      cur.t = Math.max(cur.t, duration);
+    }
+  }
+
+  /** Lightning leaps from an enemy to others nearby. */
+  arcLightning(from: Enemy, amount: number, count: number): void {
+    const pts = [{ x: from.x, y: from.y - 6 }];
+    const hit = new Set([from]);
+    let src: Enemy = from;
+    for (let i = 0; i < count; i++) {
+      let next: Enemy | null = null;
+      let nd = 80;
+      for (const o of this.enemiesNear(src.x, src.y, 80)) {
+        if (hit.has(o) || !o.targetable || o.dead) continue;
+        const d = dist(src.x, src.y, o.x, o.y);
+        if (d < nd) {
+          nd = d;
+          next = o;
+        }
+      }
+      if (!next) break;
+      hit.add(next);
+      pts.push({ x: next.x, y: next.y - 6 });
+      const n = Math.max(1, Math.round(amount * resistMult(next.def.element, 'lightning')));
+      this.dealToEnemy(
+        next,
+        n,
+        false,
+        angleTo(src.x, src.y, next.x, next.y),
+        20,
+        false,
+        ELEMENT_COLORS.lightning,
+      );
+      src = next;
+    }
+    if (pts.length > 1) this.addLightning(pts);
+  }
+
+  /** A lightning bolt from the sky onto an enemy (Stormlord's Mantle, Lightbringer). */
+  skyStrike(e: Enemy, power: number, mult: number): void {
+    this.addLightning([
+      { x: e.x + rng.range(-6, 6), y: e.y - 90 },
+      { x: e.x + rng.range(-4, 4), y: e.y - 40 },
+      { x: e.x, y: e.y - 4 },
+    ]);
+    audio.playSfx('lightning', { volume: 0.5 });
+    this.playerHit(e, {
+      power: 'custom',
+      customPower: power,
+      mult,
+      knock: 40,
+      element: 'lightning',
+      secondary: true,
+      noShake: true,
+      noSurge: true,
+    });
+  }
+
+  /** Stormlord's Mantle: lightning on the target and up to 2 enemies near it. */
+  private stormStrike(e: Enemy, power: number): void {
+    const targets = [e, ...this.enemiesNear(e.x, e.y, 70).filter((o) => o !== e && o.targetable)].slice(0, 3);
+    for (const t of targets) this.skyStrike(t, power, 1.5);
+  }
+
+  /** Damage everything around a point (set and legendary explosions). */
+  burst(
+    x: number,
+    y: number,
+    radius: number,
+    power: number,
+    mult: number,
+    el: Element,
+    except?: Enemy,
+  ): void {
+    this.novaEffect(
+      x,
+      y - 4,
+      radius,
+      el === 'ice' ? 'ice' : el === 'fire' ? 'fire' : el === 'poison' ? 'nature' : 'arcane',
+    );
+    for (const o of this.enemiesNear(x, y, radius + 20)) {
+      if (o === except || o.dead || dist(x, y, o.x, o.y) > radius + o.radius) continue;
+      this.playerHit(o, {
+        power: 'custom',
+        customPower: power,
+        mult,
+        knock: 80,
+        dir: angleTo(x, y, o.x, o.y),
+        element: el,
+        secondary: true,
+        noShake: true,
+        noSurge: true,
+      });
+    }
   }
 
   /** Talents/notables that lengthen the statuses you inflict. */
@@ -1147,14 +1419,19 @@ export class World {
     dir: number,
     knock: number,
     heavy?: boolean,
+    color?: string,
   ): void {
     if (this.game.cheat('oneHit')) dmg = Math.max(dmg, Math.ceil(e.hp));
     e.hp -= dmg;
     this.game.save.stats.damageDealt += dmg;
     e.onHurt(dir, knock * (heavy ? 1.4 : 1));
-    this.popText(e.x + rng.range(-4, 4), e.y - 14 * e.scale - 6, `${dmg}`, crit ? '#fee761' : '#ffffff', {
-      big: crit,
-    });
+    this.popText(
+      e.x + rng.range(-4, 4),
+      e.y - 14 * e.scale - 6,
+      `${dmg}`,
+      crit ? '#fee761' : (color ?? '#ffffff'),
+      { big: crit },
+    );
     audio.playSfx(crit ? 'crit' : heavy ? 'hit_heavy' : 'hit', { pan: this.pan(e.x) });
     this.particles.emit(e.x, e.y - 6 * e.scale, {
       count: crit ? 10 : 5,
@@ -1259,7 +1536,7 @@ export class World {
     const k = c.t / c.dur;
     const grow = Math.min(1, c.t / 0.12);
     const fade = k > 0.82 ? 1 - (k - 0.82) / 0.18 : 1;
-    const width = 24 * grow * fade * (1 + Math.sin(c.t * 45) * 0.1);
+    const width = SURGE.width * grow * fade * (1 + Math.sin(c.t * 45) * 0.1);
     const x = p.x + Math.cos(c.angle) * 16;
     const y = p.y - 9 + Math.sin(c.angle) * 12;
     const reach = len * Math.min(1, c.t / 0.18);
@@ -1276,10 +1553,9 @@ export class World {
       for (const e of this.enemiesNear((b.x + b.ex) / 2, (b.y + b.ey) / 2, 200)) {
         if (!circleHitsLine(e.x, e.y - 6 * e.scale, e.radius, b.x, b.y, b.ex, b.ey, b.width / 2 + 4))
           continue;
-        const st = this.game.stats();
         this.playerHit(e, {
           power: 'custom',
-          customPower: (st.atk + st.mag) / 2,
+          customPower: surgePower(this),
           mult: c.mult,
           knock: 50,
           dir: c.angle,
@@ -1287,6 +1563,7 @@ export class World {
           forceCrit: c.hits === 0,
           noShake: true,
           noSurge: true,
+          element: 'physical',
         });
       }
       c.hits++;
@@ -1460,6 +1737,31 @@ export class World {
     const st = this.game.stats();
     const p = this.player;
     const pv = st.passives;
+    this.chargeSurge(e.elite || e.isBoss ? SURGE_GAIN.eliteKill : SURGE_GAIN.kill);
+    // Mask of the Berserker
+    if (st.legendaries.has('mask_berserker')) {
+      const b = this.game.buffs;
+      b.frenzy = FRENZY.duration;
+      b.frenzyStacks = Math.min(FRENZY.max, b.frenzyStacks + 1);
+      this.game.invalidateStats();
+    }
+    // spreading poison (Venomcaller's Embrace, Pestilence)
+    const poison = e.statuses.poison;
+    if (poison && poison.t > 0 && (st.setPowers.has('venom_plague') || st.legendaries.has('pestilence'))) {
+      this.novaEffect(e.x, e.y - 4, 48, 'nature');
+      for (const o of this.enemiesNear(e.x, e.y, 64)) {
+        if (o === e || o.dead || dist(o.x, o.y, e.x, e.y) > 48 + o.radius) continue;
+        this.applyPoison(o, poison.power, 3);
+      }
+    }
+    // Emberforged Legacy: burning enemies explode
+    if (hasStatus(e, 'burn') && st.setPowers.has('ember_heart')) {
+      this.fx('fx_explosion', e.x, e.y - 6);
+      this.burst(e.x, e.y, 40, st.atk, 1, 'fire', e);
+    }
+    // Frostbound Aegis: frozen enemies shatter
+    if (hasStatus(e, 'freeze') && st.setPowers.has('frost_shatter'))
+      this.burst(e.x, e.y, 44, st.atk, 1.5, 'ice', e);
     if (pv.killHeal > 0) {
       this.healPlayer(p.maxHp * pv.killHeal, false);
       p.stamina = Math.min(100, p.stamina + pv.killHeal * 500);
@@ -1502,7 +1804,7 @@ export class World {
       drop('rare', 0.5);
       if (firstKill || rng.chance(0.2)) {
         const item = this.game.rollItem(ilvl, {
-          rarity: firstKill && rng.chance(0.5) ? 'legendary' : 'epic',
+          rarity: firstKill && rng.chance(0.5) ? (rng.chance(0.4) ? 'set' : 'legendary') : 'epic',
         });
         this.abyssTouch(item);
         this.pickups.push(new Pickup(e.x, e.y - 4, 'item', 1, item));
@@ -1547,6 +1849,9 @@ export class World {
       drop(this.game.rollItem(e.level, { rarityRoll: { min: 'rare', bonus: 1 + bonus } }));
     if (rng.chance(Math.min(0.8, 0.4 + st.magicFind * 0.1)))
       drop(this.game.rollItem(e.level, { rarity: 'legendary' }));
+    // world bosses are the best source of set pieces
+    if (rng.chance(Math.min(0.7, 0.35 + st.magicFind * 0.1)))
+      drop(this.game.rollItem(e.level, { rarity: 'set' }));
     if (rng.chance(0.5)) drop(generateCharm(rng, e.level, { size: 'grand' }));
     const zone = ZONES[this.data.id];
     const mats: MaterialId[] = [
@@ -1759,6 +2064,10 @@ export class World {
       p.retaliateCd = 1.5;
       this.shockwave(p.x, p.y, 48, 1);
     }
+    if (st.setPowers.has('warden_quake') && p.wardenCd <= 0 && p.hp > 0) {
+      p.wardenCd = 3;
+      this.shockwave(p.x, p.y, 52, 2);
+    }
     if (reflect > 0 && !e.dead && dist(e.x, e.y, p.x, p.y) < 60) {
       const refl = Math.max(1, Math.round(dmg * reflect));
       e.hp -= refl;
@@ -1769,7 +2078,6 @@ export class World {
 
   private hurtPlayer(dmg: number, dir: number, knock: number): void {
     const p = this.player;
-    const hero = this.game.save.hero;
     const st0 = this.game.stats();
     this.cancelTownPortal('Interrupted!');
     this.bossFight.hit = true;
@@ -1789,7 +2097,7 @@ export class World {
     this.shake(4, 0.2);
     this.hitStop(0.05);
     this.flashScreen('#e43b44', 0.12);
-    if (hero.surgeUnlocked) hero.surge = Math.min(100, hero.surge + 3);
+    this.chargeSurge(SURGE_GAIN.hurt);
     this.particles.emit(p.x, p.y - 8, {
       count: 8,
       color: ['#e43b44', '#a22633'],
@@ -1817,7 +2125,14 @@ export class World {
 
   /** Evasion talent: a chance to shrug off an attack entirely. */
   private evaded(): boolean {
-    const ev = this.game.stats().passives.evade;
+    const st = this.game.stats();
+    // Aegis of Dawn: a chance to block the attack outright
+    if (st.legendaries.has('aegis_dawn') && rng.chance(0.2)) {
+      this.popText(this.player.x, this.player.y - 22, 'Blocked', '#fee761', { small: true });
+      audio.playSfx('block');
+      return true;
+    }
+    const ev = st.passives.evade;
     if (ev <= 0 || !rng.chance(ev)) return false;
     this.popText(this.player.x, this.player.y - 22, 'Evaded', '#c0cbdc', { small: true });
     return true;
@@ -1901,8 +2216,7 @@ export class World {
     p.perfectUsed = true;
     this.game.count('perfects');
     this.slowT = 0.9;
-    const hero = this.game.save.hero;
-    if (hero.surgeUnlocked) hero.surge = Math.min(100, hero.surge + 15);
+    this.chargeSurge(SURGE_GAIN.perfect);
     p.stamina = Math.min(100, p.stamina + 20);
     this.popText(p.x, p.y - 28, 'PERFECT!', '#2ce8f5', { big: true });
     if (this.game.stats().asc.has('bm_riposte')) {
@@ -1961,11 +2275,28 @@ export class World {
     this.playerHit(e, {
       power: pr.owner.stat ?? 'mag',
       mult: pr.mult,
-      knock: 50,
+      knock: pr.knock,
       dir: pr.angle,
       isSkill: pr.owner.isSkill,
       status: pr.spec.status,
+      element: pr.owner.element,
+      basic: pr.basic,
     });
+    if (pr.blast) {
+      const st = this.game.stats();
+      const power = pr.owner.stat === 'mag' ? st.mag : st.atk;
+      this.fx('fx_explosion', e.x, e.y - 6);
+      audio.playSfx('explosion', { volume: 0.5, pan: this.pan(e.x) });
+      this.burst(
+        e.x,
+        e.y,
+        pr.blast.radius,
+        power,
+        pr.blast.mult,
+        st.element === 'physical' ? 'fire' : st.element,
+        e,
+      );
+    }
     if (pr.chain > 0) {
       // Stormcaller: arc to nearby enemies
       const pts = [{ x: e.x, y: e.y - 6 }];
@@ -1976,7 +2307,14 @@ export class World {
         if (!next) break;
         hit.add(next);
         pts.push({ x: next.x, y: next.y - 6 });
-        this.playerHit(next, { power: 'mag', mult: pr.mult * 0.6, knock: 20, noShake: true });
+        this.playerHit(next, {
+          power: pr.owner.stat ?? 'mag',
+          mult: pr.mult * 0.6,
+          knock: 20,
+          noShake: true,
+          element: 'lightning',
+          secondary: true,
+        });
         from = next;
       }
       if (pts.length > 1) this.addLightning(pts);
@@ -2002,6 +2340,7 @@ export class World {
             dir: angleTo(pr.x, pr.y, e.x, e.y),
             isSkill: pr.owner.isSkill,
             status: ex.status,
+            element: pr.owner.element,
           });
         }
       } else if (dist(pr.x, pr.y + 6, this.player.x, this.player.y) < ex.radius + this.player.radius) {
@@ -2072,6 +2411,7 @@ export class World {
       isSkill: h.owner.isSkill,
       status: h.spec.status,
       noShake: h.spec.duration > 0,
+      element: h.owner.element,
     });
   }
 
@@ -2149,39 +2489,62 @@ export class World {
     angle: number,
     mult: number,
     stat: 'atk' | 'mag',
+    element?: Element,
   ): Projectile {
     const pr = new Projectile(
       x,
       y,
       angle,
       spec,
-      { power: 0, level: this.game.save.hero.level, faction: 'player', stat, isSkill: true },
+      { power: 0, level: this.game.save.hero.level, faction: 'player', stat, isSkill: true, element },
       mult,
     );
+    if (element && element !== 'physical') pr.trail = ELEMENT_COLORS[element];
     this.projectiles.push(pr);
     return pr;
   }
 
-  spawnPlayerBolt(x: number, y: number, angle: number, mult: number): void {
-    const spec: ProjectileSpec = { sprite: 'proj_bolt', speed: 260, radius: 3, dmg: 0, life: 0.6 };
+  /** A weapon shot: a staff bolt, an arrow or a crossbow bolt. Basic attacks follow the weapon's element. */
+  spawnPlayerShot(
+    kind: WeaponKind,
+    x: number,
+    y: number,
+    angle: number,
+    mult: number,
+    o: { pierce?: number; blast?: { radius: number; mult: number }; big?: boolean; knock?: number } = {},
+  ): Projectile {
+    const st = this.game.stats();
+    const spec: ProjectileSpec =
+      kind === 'staff'
+        ? { sprite: 'proj_bolt', speed: 260, radius: 3, dmg: 0, life: 0.6 }
+        : kind === 'crossbow'
+          ? { sprite: 'proj_quarrel', speed: 330, radius: 3, dmg: 0, life: 0.56, scale: o.big ? 1.4 : 1 }
+          : { sprite: 'proj_hero_arrow', speed: 300, radius: 3, dmg: 0, life: 0.58, scale: o.big ? 1.3 : 1 };
     const pr = new Projectile(
       x,
       y,
       angle,
       spec,
-      { power: 0, level: this.game.save.hero.level, faction: 'player', stat: 'mag' },
+      { power: 0, level: this.game.save.hero.level, faction: 'player', stat: WEAPON_FEEL[kind].stat },
       mult,
     );
-    const st = this.game.stats();
-    pr.chain = (st.legendaries.has('stormcaller') ? 2 : 0) + (st.asc.has('am_archon') ? 2 : 0);
+    pr.basic = true;
+    pr.pierce = o.pierce ?? 0;
+    pr.blast = o.blast ?? null;
+    pr.knock = o.knock ?? WEAPON_FEEL[kind].knockback;
+    if (kind === 'staff')
+      pr.chain = (st.legendaries.has('stormcaller') ? 2 : 0) + (st.asc.has('am_archon') ? 2 : 0);
+    if (kind === 'crossbow' && st.legendaries.has('thunderlord')) pr.chain = 3;
+    if (st.element !== 'physical') pr.trail = ELEMENT_COLORS[st.element];
     this.projectiles.push(pr);
+    return pr;
   }
 
   enemyHazard(e: Enemy, spec: HazardSpec): void {
     this.hazards.push(new Hazard(spec, { faction: 'enemy', power: e.atk, level: e.level, source: e }));
   }
 
-  playerHazard(spec: HazardSpec, stat: 'atk' | 'mag'): void {
+  playerHazard(spec: HazardSpec, stat: 'atk' | 'mag', element?: Element): void {
     this.hazards.push(
       new Hazard(spec, {
         faction: 'player',
@@ -2189,6 +2552,7 @@ export class World {
         level: this.game.save.hero.level,
         stat,
         isSkill: true,
+        element,
       }),
     );
   }
@@ -2569,6 +2933,29 @@ export class World {
     };
     const pr = this.spawnPlayerProjectile(spec, p.x, p.y - 6, aim, 1.2, 'atk');
     pr.pierce = 99;
+  }
+
+  /** Emberstride: a line of flames along a dodge roll. */
+  fireTrail(x: number, y: number, angle: number): void {
+    for (let i = 0; i < 3; i++) {
+      const d = 8 + i * 16;
+      this.playerHazard(
+        {
+          shape: 'circle',
+          x: x + Math.cos(angle) * d,
+          y: y + Math.sin(angle) * d,
+          radius: 14,
+          delay: 0.05 + i * 0.05,
+          duration: 2,
+          tick: 0.5,
+          mult: 0.3,
+          color: '#f77622',
+          visual: 'fire',
+        },
+        'atk',
+        'fire',
+      );
+    }
   }
 
   gust(p: Player, angle: number): void {
