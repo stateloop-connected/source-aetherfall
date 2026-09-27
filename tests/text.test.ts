@@ -12,9 +12,13 @@ import {
 import { DEFAULT_SETTINGS, loadSettings } from '../src/game/settings';
 
 describe('text styles', () => {
-  it('Classic is the default, including for settings saved before styles existed', () => {
-    expect(DEFAULT_SETTINGS.textStyle).toBe('classic');
-    expect(loadSettings({ getItem: () => JSON.stringify({ music: 0.3 }) }).textStyle).toBe('classic');
+  it('Crisp is the default, including for settings saved before styles existed', () => {
+    expect(DEFAULT_SETTINGS.textStyle).toBe('crisp');
+    expect(loadSettings({ getItem: () => JSON.stringify({ music: 0.3 }) }).textStyle).toBe('crisp');
+    // a style someone chose is kept
+    expect(loadSettings({ getItem: () => JSON.stringify({ textStyle: 'classic' }) }).textStyle).toBe(
+      'classic',
+    );
   });
 
   it('every style is described, and only the finer ones need full resolution', () => {

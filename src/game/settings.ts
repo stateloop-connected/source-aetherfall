@@ -50,7 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   difficulty: 'normal',
   devUnlocked: false,
   devMode: false,
-  textStyle: 'classic',
+  textStyle: 'crisp',
 };
 
 export const TEXT_SPEED_CPS: Record<TextSpeed, number> = {

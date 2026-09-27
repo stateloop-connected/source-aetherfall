@@ -285,7 +285,7 @@ export const TEXT_STYLE_INFO: Record<TextStyle, { label: string; desc: string }>
   classic: { label: 'Classic', desc: 'The original chunky pixel font.' },
   crisp: {
     label: 'Crisp',
-    desc: 'The pixel font drawn smaller and sharper, so menus and tooltips fit more and feel less cramped.',
+    desc: 'The default: the pixel font drawn smaller and sharper, so menus and tooltips fit more and feel less cramped.',
   },
   clean: {
     label: 'Clean',

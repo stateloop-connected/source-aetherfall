@@ -118,7 +118,7 @@ The art, music and sound effects are all generated in code; the repo contains no
   Charm Satchels from Mira, and manual sorting: drag and drop items (or use Move) to arrange your bag and pick
   which charms are active.
 - **Text styles.** Settings → Text Style switches how all on-screen text is drawn: **Classic** (the original
-  chunky pixel font), **Crisp** (the pixel font smaller and sharper, so menus fit more), **Clean** (a smooth font at
+  chunky pixel font), **Crisp** (the default: the pixel font smaller and sharper, so menus fit more), **Clean** (a smooth font at
   full screen resolution, the easiest to read and smaller in menus) or **High Contrast** (outlined text on a dark
   backing, brighter grey text and solid panels). Crisp and Clean render the whole canvas at full resolution while
   the pixel art stays pixel-perfect.
