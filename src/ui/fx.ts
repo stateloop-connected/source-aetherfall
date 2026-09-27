@@ -47,7 +47,16 @@ export function applyImpactFrame(
   h: number,
   style: ImpactStyle = 'dark',
 ): void {
-  const img = ctx.getImageData(0, 0, w, h);
+  const cw = ctx.canvas.width;
+  const ch = ctx.canvas.height;
+  // at full resolution, work on a game-resolution copy (same look, same cost)
+  const full = cw !== w;
+  const target = full ? impactCanvas(w, h) : ctx;
+  if (full) {
+    target.imageSmoothingEnabled = false;
+    target.drawImage(ctx.canvas, 0, 0, cw, ch, 0, 0, w, h);
+  }
+  const img = target.getImageData(0, 0, w, h);
   const d = img.data;
   const [ink, paper] = TINTS[style];
   for (let i = 0; i < d.length; i += 4) {
@@ -57,7 +66,24 @@ export function applyImpactFrame(
     d[i + 1] = c[1];
     d[i + 2] = c[2];
   }
-  ctx.putImageData(img, 0, 0);
+  target.putImageData(img, 0, 0);
+  if (full) {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(target.canvas, 0, 0, w, h, 0, 0, cw, ch);
+    ctx.restore();
+  }
+}
+
+let impact: HTMLCanvasElement | null = null;
+function impactCanvas(w: number, h: number): CanvasRenderingContext2D {
+  if (!impact || impact.width !== w || impact.height !== h) {
+    impact = document.createElement('canvas');
+    impact.width = w;
+    impact.height = h;
+  }
+  return impact.getContext('2d', { willReadFrequently: true })!;
 }
 
 /** Style that alternates every couple of frames for a strobing impact. */
@@ -79,11 +105,15 @@ export function zoomPunch(
   scale: number,
 ): void {
   if (scale <= 1.001) return;
-  const c = scratchCanvas(w, h);
+  // work in canvas pixels (the canvas may be at full resolution: r canvas pixels per game pixel)
+  const r = ctx.canvas.width / w;
+  const cw = ctx.canvas.width;
+  const ch = ctx.canvas.height;
+  const c = scratchCanvas(cw, ch);
   const sc = c.getContext('2d')!;
   sc.imageSmoothingEnabled = false;
-  sc.clearRect(0, 0, w, h);
-  sc.drawImage(ctx.canvas, 0, 0, w, h, 0, 0, w, h);
+  sc.clearRect(0, 0, cw, ch);
+  sc.drawImage(ctx.canvas, 0, 0, cw, ch, 0, 0, cw, ch);
   const sw = w / scale;
   const sh = h / scale;
   const sx = Math.max(0, Math.min(w - sw, cx - sw / 2));
@@ -91,6 +121,6 @@ export function zoomPunch(
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.drawImage(c, sx, sy, sw, sh, 0, 0, w, h);
+  ctx.drawImage(c, sx * r, sy * r, sw * r, sh * r, 0, 0, cw, ch);
   ctx.restore();
 }

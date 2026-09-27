@@ -14,7 +14,15 @@ export class Screen {
   readonly ctx: CanvasRenderingContext2D;
   width = 480;
   height = 270;
+  /** Device pixels per game pixel on screen. */
   scale = 1;
+  /**
+   * Device pixels per game pixel in the canvas itself: 1 normally (the canvas is
+   * upscaled by CSS), or `scale` at full resolution (drawing uses a matching transform).
+   */
+  res = 1;
+  /** Render the canvas at full screen resolution (for text finer than a game pixel). */
+  private fullRes = false;
   private listeners: (() => void)[] = [];
 
   constructor(canvas: HTMLCanvasElement) {
@@ -31,6 +39,12 @@ export class Screen {
     this.listeners.push(fn);
   }
 
+  setFullResolution(on: boolean): void {
+    if (on === this.fullRes) return;
+    this.fullRes = on;
+    this.resize();
+  }
+
   resize(): void {
     const dpr = window.devicePixelRatio || 1;
     const vw = window.visualViewport?.width ?? window.innerWidth;
@@ -44,8 +58,9 @@ export class Screen {
     this.width = w;
     this.height = h;
     this.scale = scale;
-    this.canvas.width = w;
-    this.canvas.height = h;
+    this.res = this.fullRes ? scale : 1;
+    this.canvas.width = w * this.res;
+    this.canvas.height = h * this.res;
     this.canvas.style.width = `${(w * scale) / dpr}px`;
     this.canvas.style.height = `${(h * scale) / dpr}px`;
     this.ctx.imageSmoothingEnabled = false;

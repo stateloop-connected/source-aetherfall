@@ -2,7 +2,7 @@
 import { drawPortrait } from '../art/anime';
 import { audio } from '../audio';
 import type { Scene } from '../engine/app';
-import { drawLines, drawText, visibleLength, wrapText } from '../engine/font';
+import { drawLines, drawText, lineHeight, visibleLength, wrapText } from '../engine/font';
 import { isChoice, isLine, type Choice, type Line, type Step } from '../game/dialogue';
 import type { Game } from '../game/game';
 import { TEXT_SPEED_CPS } from '../game/settings';
@@ -155,7 +155,10 @@ export class DialogueScene implements Scene {
         });
         drawText(ctx, this.line.who, nx + 6, box.y - 9, { color: UI.accent });
       }
-      drawLines(ctx, this.wrapped, textX, box.y + 8, { maxChars: Math.floor(this.shown), lineHeight: 11 });
+      drawLines(ctx, this.wrapped, textX, box.y + 8, {
+        maxChars: Math.floor(this.shown),
+        lineHeight: lineHeight() + 1,
+      });
       if (this.shown >= this.total && Math.floor(this.t * 3) % 2 === 0) {
         drawText(ctx, '▼', box.x + box.w - 10, box.y + box.h - 11, { color: UI.accent });
       }

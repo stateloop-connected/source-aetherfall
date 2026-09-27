@@ -1,7 +1,7 @@
 /** Dialogue backlog: scroll back through recent lines (a staple of visual novels). */
 import { audio } from '../audio';
 import type { Scene } from '../engine/app';
-import { drawText, LINE_HEIGHT, wrapText } from '../engine/font';
+import { drawText, lineHeight, wrapText } from '../engine/font';
 import type { Game } from '../game/game';
 import { drawHints, drawPanel, UI } from '../ui/widgets';
 
@@ -20,7 +20,7 @@ export class BacklogScene implements Scene {
       const text = e.who ? `{gold}${e.who}:{/} ${e.text}` : `{gray}${e.text}{/}`;
       this.lines.push(...wrapText(text, w), '');
     }
-    this.rows = Math.floor((this.game.app.height - 60) / LINE_HEIGHT);
+    this.rows = Math.floor((this.game.app.height - 60) / lineHeight());
     this.scroll = Math.max(0, this.lines.length - this.rows);
   }
 
@@ -52,7 +52,7 @@ export class BacklogScene implements Scene {
     if (!this.lines.length) drawText(ctx, 'Nothing yet.', x + 8, 32, { color: UI.dim });
     for (let i = 0; i < this.rows; i++) {
       const l = this.lines[this.scroll + i];
-      if (l) drawText(ctx, l, x + 8, 30 + i * LINE_HEIGHT);
+      if (l) drawText(ctx, l, x + 8, 30 + i * lineHeight());
     }
     drawHints(
       ctx,

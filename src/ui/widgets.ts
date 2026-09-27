@@ -5,7 +5,7 @@ import type { IconId } from '../art/pixel/types';
 import { audio } from '../audio';
 import { GEM_INFO } from '../data/gems';
 import { LEGENDARIES } from '../data/items';
-import { drawText, LINE_HEIGHT, measureText, wrapText } from '../engine/font';
+import { drawText, lineHeight, measureText, wrapText } from '../engine/font';
 import type { Action, Input } from '../engine/input';
 import { pointInRect, type Rect } from '../engine/math';
 import { sellPrice } from '../game/balance';
@@ -41,6 +41,18 @@ export const UI = {
   cyan: '#2ce8f5',
 };
 
+/** Panel background opacity (High Contrast makes panels solid). */
+let panelAlpha = 0.94;
+
+/** The High Contrast text style: brighter secondary text and borders, solid panels. */
+export function setUiContrast(on: boolean): void {
+  UI.dim = on ? '#c0cbdc' : '#8b9bb4';
+  UI.border = on ? '#8b9bb4' : '#5a6988';
+  UI.borderHi = on ? '#c0cbdc' : '#8b9bb4';
+  UI.sel = on ? '#4b5a88' : '#3a4466';
+  panelAlpha = on ? 1 : 0.94;
+}
+
 export function drawPanel(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -53,7 +65,7 @@ export function drawPanel(
   y = Math.round(y);
   w = Math.round(w);
   h = Math.round(h);
-  ctx.globalAlpha = opts.alpha ?? 0.94;
+  ctx.globalAlpha = opts.alpha ?? panelAlpha;
   ctx.fillStyle = opts.fill ?? UI.bg;
   ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
   ctx.globalAlpha = 1;
@@ -325,18 +337,19 @@ export function drawTooltip(
   w: number,
   maxH = 999,
 ): number {
+  const lh = lineHeight();
   const wrapped: string[] = [];
   for (const l of lines) {
     if (!l) wrapped.push('');
     else wrapped.push(...wrapText(l, w - 10));
   }
-  const h = Math.min(maxH, wrapped.length * LINE_HEIGHT + 8);
+  const h = Math.min(maxH, wrapped.length * lh + 8);
   drawPanel(ctx, x, y, w, h, { alpha: 0.97 });
   let cy = y + 5;
   for (const l of wrapped) {
-    if (cy + LINE_HEIGHT > y + h) break;
+    if (cy + lh > y + h) break;
     if (l) drawText(ctx, l, x + 5, cy);
-    cy += l ? LINE_HEIGHT : 5;
+    cy += l ? lh : 5;
   }
   return h;
 }

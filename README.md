@@ -39,6 +39,13 @@ The art, music and sound effects are all generated in code; the repo contains no
 | ![Town portal back to where you left](docs/screenshots/town-portal.png) | ![Crafting at Brom's forge](docs/screenshots/crafting.png)          |
 | ![The stash in town](docs/screenshots/stash.png)                        | ![A world boss event](docs/screenshots/world-boss.png)              |
 
+**Text styles** (Classic, Crisp, Clean and High Contrast)
+
+|                                                    |                                                           |
+| -------------------------------------------------- | --------------------------------------------------------- |
+| ![Classic](docs/screenshots/text-menu-classic.png) | ![Crisp](docs/screenshots/text-menu-crisp.png)            |
+| ![Clean](docs/screenshots/text-menu-clean.png)     | ![High Contrast](docs/screenshots/text-menu-contrast.png) |
+
 **Weapons, elements and item sets**
 
 |                                                                    |                                                                               |
@@ -110,6 +117,11 @@ The art, music and sound effects are all generated in code; the repo contains no
 - **Storage.** A tabbed stash chest in town, shared by all three save slots (buy more tabs), Bag Expansions and
   Charm Satchels from Mira, and manual sorting: drag and drop items (or use Move) to arrange your bag and pick
   which charms are active.
+- **Text styles.** Settings → Text Style switches how all on-screen text is drawn: **Classic** (the original
+  chunky pixel font), **Crisp** (the pixel font smaller and sharper, so menus fit more), **Clean** (a smooth font at
+  full screen resolution, the easiest to read and smaller in menus) or **High Contrast** (outlined text on a dark
+  backing, brighter grey text and solid panels). Crisp and Clean render the whole canvas at full resolution while
+  the pixel art stays pixel-perfect.
 - **Character sheet and paper doll.** Gear slots sit on the hero's body (head, neck, chest, hands, two rings,
   waist, feet, main hand). A Diablo / Path of Exile–style Stats tab shows DPS, toughness, damage reduction,
   attacks per second, recovery and every other stat, each with an explanation.
